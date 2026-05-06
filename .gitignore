@@ -1,0 +1,10 @@
+*.local
+!zsh/.local/
+*.secret
+.env
+**/.zcompdump*
+**/*.zwc
+yazi/.config/yazi/plugins/
+zsh/.config/zsh/.zsh_history
+
+.idea
