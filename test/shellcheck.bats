@@ -3,6 +3,8 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 
 @test "publish.sh passes shellcheck" {
+  # publish.sh is not synced to the public repo, so only run in the private source repo
+  skip "publish.sh is a private dev tool — not published"
   run shellcheck "$REPO_ROOT/publish.sh"
   [ "$status" -eq 0 ]
 }
