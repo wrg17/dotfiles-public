@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+case "$OSTYPE" in
+  darwin*) pbcopy ;;
+  linux*)  command -v wl-copy >/dev/null && wl-copy || xclip -selection clipboard ;;
+esac

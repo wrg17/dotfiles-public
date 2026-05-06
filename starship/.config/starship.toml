@@ -1,0 +1,63 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+format = """
+$directory\
+$git_branch\
+$git_status\
+$python\
+$nodejs\
+$cmd_duration\
+$line_break\
+$character"""
+
+[directory]
+truncation_length = 4
+truncate_to_repo = true
+
+[git_branch]
+format = '[$symbol$branch]($style) '
+symbol = " "
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+modified = "!${count}"
+staged = "+${count}"
+untracked = "?${count}"
+deleted = "✘${count}"
+
+[python]
+format = '[${symbol}${pyenv_prefix}(${version} )(\($virtualenv\))]($style) '
+symbol = " "
+detect_files = ['requirements.txt', 'pyproject.toml', 'Pipfile', '.python-version']
+style = "yellow"
+
+[nodejs]
+format = '[$symbol($version)]($style) '
+symbol = " "
+
+[cmd_duration]
+min_time = 2_000
+format = '[$duration]($style) '
+style = "yellow"
+
+[character]
+success_symbol = "[❯](green)"
+error_symbol = "[❯](red)"
+
+[docker_context]
+format = '[$symbol$context]($style) '
+symbol = " "
+only_with_files = true    # only shows when docker-compose.yml etc present
+
+[rust]
+format = '[$symbol($version)]($style) '
+symbol = " "
+
+[time]
+disabled = false
+format = '[$time]($style) '
+time_format = "%H:%M"
+style = "dimmed white"
