@@ -5,16 +5,16 @@ NVIM_DIR="$REPO_ROOT/nvim/.config/nvim"
 
 # ── Colorscheme ────────────────────────────────────────────────────────────
 
-@test "nvim: tokyonight is the colorscheme plugin" {
-  grep -q 'tokyonight' "$NVIM_DIR/lua/plugins/colorscheme.lua"
+@test "nvim: dracula is the colorscheme plugin" {
+  grep -qF 'Mofiqul/dracula.nvim' "$NVIM_DIR/lua/plugins/colorscheme.lua"
 }
 
-@test "nvim: colorscheme style is night" {
-  grep -qF 'style = "night"' "$NVIM_DIR/lua/plugins/colorscheme.lua"
+@test "nvim: LazyVim is configured to use dracula" {
+  grep -qF 'colorscheme = "dracula"' "$NVIM_DIR/lua/plugins/colorscheme.lua"
 }
 
-@test "nvim: terminal colors are enabled" {
-  grep -qF 'terminal_colors = true' "$NVIM_DIR/lua/plugins/colorscheme.lua"
+@test "nvim: italic comments are enabled" {
+  grep -qF 'italic_comment = true' "$NVIM_DIR/lua/plugins/colorscheme.lua"
 }
 
 # ── Tmux integration ───────────────────────────────────────────────────────

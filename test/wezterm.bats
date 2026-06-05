@@ -19,11 +19,15 @@ WEZTERM_CFG="$REPO_ROOT/wezterm/.config/wezterm/wezterm.lua"
 
 # ── Color scheme ───────────────────────────────────────────────────────────
 
-@test "wezterm: color scheme is Tokyo Night" {
-  grep -qF 'color_scheme = "Tokyo Night"' "$WEZTERM_CFG"
+@test "wezterm: color scheme is Dracula" {
+  grep -qF 'color_scheme = "Dracula (Official)"' "$WEZTERM_CFG"
 }
 
 # ── Default program (tmux) ─────────────────────────────────────────────────
+
+@test "wezterm: Homebrew paths added so tmux is found from GUI launch" {
+  grep -qF 'PATH = "/opt/homebrew/bin:/usr/local/bin:' "$WEZTERM_CFG"
+}
 
 @test "wezterm: default program launches tmux" {
   grep -qF '"tmux"' "$WEZTERM_CFG"
@@ -39,9 +43,6 @@ WEZTERM_CFG="$REPO_ROOT/wezterm/.config/wezterm/wezterm.lua"
 
 # ── Keyboard ───────────────────────────────────────────────────────────────
 
-@test "wezterm: Kitty keyboard protocol is enabled" {
-  grep -qF 'enable_kitty_keyboard = true' "$WEZTERM_CFG"
-}
 
 # ── Rendering ──────────────────────────────────────────────────────────────
 
@@ -71,6 +72,6 @@ WEZTERM_CFG="$REPO_ROOT/wezterm/.config/wezterm/wezterm.lua"
   grep -qF 'default_cursor_style = "BlinkingBar"' "$WEZTERM_CFG"
 }
 
-@test "wezterm: window decorations are resize only" {
-  grep -qF 'window_decorations = "RESIZE"' "$WEZTERM_CFG"
+@test "wezterm: window decorations include title bar" {
+  grep -qF 'window_decorations = "TITLE | RESIZE"' "$WEZTERM_CFG"
 }

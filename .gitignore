@@ -5,6 +5,14 @@
 **/.zcompdump*
 **/*.zwc
 yazi/.config/yazi/plugins/
+tmux/.config/tmux/plugins/
 zsh/.config/zsh/.zsh_history
 
 .idea
+.claude/
+
+# nvim build artifacts (from install-tools.sh download)
+nvim-macos-x86_64.tar.gz
+nvim-macos-x86_64/
+nvim-linux64.tar.gz
+nvim-linux64/

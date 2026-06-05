@@ -7,7 +7,7 @@ setup() {
   # Stow all packages together — this is the real use case and determines
   # correct folding: .config/ becomes a real dir (multiple packages share it),
   # so each tool's subdirectory becomes the symlink rather than .config itself.
-  stow -d "$REPO_ROOT" -t "$FAKE_HOME" nvim starship tmux wezterm yazi zsh
+  stow -d "$REPO_ROOT" -t "$FAKE_HOME" nvim sheldon starship tmux wezterm yazi zsh
 }
 
 teardown() {
@@ -79,6 +79,16 @@ teardown() {
 
 @test "stow: starship.toml is readable" {
   [ -e "$FAKE_HOME/.config/starship.toml" ]
+}
+
+# ── sheldon ────────────────────────────────────────────────────────────────
+
+@test "stow: .config/sheldon is a symlink" {
+  [ -L "$FAKE_HOME/.config/sheldon" ]
+}
+
+@test "stow: plugins.toml is accessible through symlink" {
+  [ -e "$FAKE_HOME/.config/sheldon/plugins.toml" ]
 }
 
 # ── tmux ───────────────────────────────────────────────────────────────────
