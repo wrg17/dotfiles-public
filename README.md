@@ -1,6 +1,6 @@
 # dotfiles
 
-Personal configuration for a Linux workstation, managed with [GNU Stow](https://www.gnu.org/software/stow/) and versioned with git.
+Personal configuration managed with [GNU Stow](https://www.gnu.org/software/stow/) and versioned with git.
 
 ## Packages
 
@@ -15,15 +15,48 @@ Personal configuration for a Linux workstation, managed with [GNU Stow](https://
 
 ## Install
 
+### macOS
+
+```sh
+# Install Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Follow the printed instructions to add brew to PATH before continuing
+
+# Install stow (zsh, git, curl ship with macOS)
+brew install stow
+
+# Install Oh My Zsh (skip its default zshrc)
+ZSH="$HOME/.local/share/oh-my-zsh" sh -c \
+  "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
+  "" --unattended --keep-zshrc
+
+# Install Oh My Zsh plugins
+git clone https://github.com/zsh-users/zsh-autosuggestions \
+  $HOME/.local/share/oh-my-zsh/custom/plugins/zsh-autosuggestions
+git clone https://github.com/zsh-users/zsh-syntax-highlighting \
+  $HOME/.local/share/oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+git clone https://github.com/zsh-users/zsh-history-substring-search \
+  $HOME/.local/share/oh-my-zsh/custom/plugins/zsh-history-substring-search
+
+# Stow all packages
+cd ~/dotfiles && stow nvim starship tmux wezterm yazi zsh
+
+# Reload shell
+exec zsh
+
+# Install CLI tools
+brew install neovim starship eza bat fd ripgrep zoxide direnv \
+             fzf lazygit gh tree jq imagemagick yazi tmux
+```
+
+### Linux (Debian/Ubuntu)
+
 ```sh
 # Prerequisites
 sudo apt install zsh tmux stow git curl
 
 # Make zsh the default shell
 chsh -s $(which zsh)
-
-# Clone
-git clone <repo-url> ~/dotfiles
 
 # Install Oh My Zsh (skip its default zshrc)
 ZSH="$HOME/.local/share/oh-my-zsh" sh -c \
@@ -81,7 +114,7 @@ dotsall          # stow every package
 ### Updating tools
 
 ```sh
-upd    # runs apt, brew, rustup, pipx, oh-my-zsh in sequence
+upd    # runs brew, rustup, pipx, oh-my-zsh (and apt on Linux) in sequence
 ```
 
 ## Architecture
@@ -106,7 +139,7 @@ upd    # runs apt, brew, rustup, pipx, oh-my-zsh in sequence
 
 ### Tooling boundaries
 
-- **apt** — system tools (`zsh`, `tmux`, `stow`, `git`, `curl`)
+- **apt** (Linux) — system tools (`zsh`, `tmux`, `stow`, `git`, `curl`)
 - **Homebrew** — developer CLI tools (`nvim`, `starship`, `eza`, `bat`, etc.)
 - **cargo** — Rust toolchain and crates
 - **pipx** — Python CLI applications
@@ -121,7 +154,8 @@ stow <pkg>
 ```
 
 **`brew not found` after restart**
-Check that brew's bin is in the `path=()` array in `.zshrc` and that `.zshenv` sets `HOMEBREW_PREFIX`.
+macOS: verify the `eval "$(/opt/homebrew/bin/brew shellenv)"` line is in `.zshenv` (Apple Silicon) or `/usr/local/bin/brew` (Intel).
+Linux: verify `/home/linuxbrew/.linuxbrew/bin/brew shellenv` is in `.zshenv`.
 
 **Tmux launches inside JetBrains or VS Code terminal**
 The auto-launch guard in `.zshrc` checks `TERMINAL_EMULATOR`, `VSCODE_INJECTION`, and `INTELLIJ_ENVIRONMENT_READER`. Add the new editor's env marker to the guard if needed.

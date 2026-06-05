@@ -1,0 +1,12 @@
+shell = "zsh"
+
+[plugins.zsh-syntax-highlighting]
+github = "zsh-users/zsh-syntax-highlighting"
+
+# Dracula palette for zsh-syntax-highlighting — must source AFTER the highlighter
+[plugins.dracula-syntax-highlighting]
+github = "dracula/zsh-syntax-highlighting"
+use = ["zsh-syntax-highlighting.sh"]
+
+[plugins.zsh-history-substring-search]
+github = "zsh-users/zsh-history-substring-search"

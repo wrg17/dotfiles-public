@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Fuzzy-match a needle against a delimited list; outputs matches ranked by score
+#
+# Usage:
+#   fuzzy [-d delim] <needle> <list>   # split list by delim (default: :)
+#   fuzzy [-d delim] <needle>          # read items from stdin (one per line)
+#
+# Examples:
+#   fuzzy git "github:gitignore:grep:gzip"
+#   fuzzy -d, hub "github,gitlab,bitbucket"
+#   printf 'github\ngitlab\ngrep\n' | fuzzy git
+set -euo pipefail
+
+delimiter=':'
+while getopts ':d:' opt; do
+  case "$opt" in
+    d) delimiter="$OPTARG" ;;
+    *) printf 'Usage: fuzzy [-d delim] <needle> [list]\n' >&2; exit 1 ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+[[ $# -ge 1 ]] || { printf 'Usage: fuzzy [-d delim] <needle> [list]\n' >&2; exit 1; }
+needle="$1"; shift
+[[ -n "$needle" ]] || { printf 'needle cannot be empty\n' >&2; exit 1; }
+
+if [[ $# -ge 1 ]]; then
+  IFS="$delimiter" read -ra _items <<< "$1"
+  printf '%s\n' "${_items[@]}"
+else
+  cat
+fi | awk -v needle="$needle" '
+function score(n, item,    ni, ii, s, last, start) {
+  n = tolower(n); item = tolower(item)
+  ni = 1; s = 0; last = 0; start = 0
+  for (ii = 1; ii <= length(item); ii++) {
+    if (substr(n, ni, 1) == substr(item, ii, 1)) {
+      if (!start) start = ii
+      if (last)   s += (ii - last - 1)
+      last = ii; ni++
+      if (ni > length(n)) break
+    }
+  }
+  return (ni > length(n)) ? (start + s) : -1
+}
+{ s = score(needle, $0); if (s >= 0) print s "\t" $0 }
+' | sort -k1,1n | cut -f2-

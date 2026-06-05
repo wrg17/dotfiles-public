@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Identify and remove stale app data: orphaned caches, orphaned logs,
+# and old JetBrains IDE version directories.
+# Usage: disk-cleanup [--dry-run]
+set -euo pipefail
+
+if [[ "$OSTYPE" != darwin* ]]; then
+  printf 'disk-cleanup: macOS only\n' >&2
+  exit 1
+fi
+
+DRY_RUN=false
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+
+labels=()
+names=()
+paths=()
+sizes=()
+
+add_candidate() {
+  local label="$1" path="$2" size
+  size=$(du -sh "$path" 2>/dev/null | cut -f1) || size="?"
+  labels+=("$label")
+  names+=("$(basename "$path")")
+  paths+=("$path")
+  sizes+=("$size")
+}
+
+app_installed() {
+  mdfind "kMDItemCFBundleIdentifier == '$1'" 2>/dev/null | grep -q .
+}
+
+# Scan a directory for bundle-ID subdirs whose app is no longer installed.
+scan_bundle_id_dirs() {
+  local label="$1" dir="$2"
+  [[ -d "$dir" ]] || return 0
+  while IFS= read -r -d '' entry; do
+    local name
+    name=$(basename "$entry")
+    [[ "$name" =~ ^(com|net|org|io|app|co)\. ]] || continue
+    [[ "$name" == com.apple.* ]] && continue
+    app_installed "$name" && continue
+    add_candidate "$label" "$entry"
+  done < <(find "$dir" -maxdepth 1 -mindepth 1 -print0 2>/dev/null)
+}
+
+# Find JetBrains IDE dirs that are not the latest version per product.
+scan_jetbrains() {
+  local dir="$HOME/Library/Application Support/JetBrains"
+  [[ -d "$dir" ]] || return 0
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    add_candidate "jetbrains" "$dir/$name"
+  done < <(
+    find "$dir" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null \
+    | while IFS= read -r -d '' e; do printf '%s\n' "$(basename "$e")"; done \
+    | awk '
+        /^[A-Za-z]+[0-9]{4}\.[0-9]+(|-backup)$/ {
+          name = $0
+          product = name; gsub(/[0-9].*$/, "", product)
+          ver = name; sub(/^[A-Za-z]+/, "", ver); gsub(/-backup$/, "", ver)
+          is_backup = (name ~ /-backup$/) ? 1 : 0
+          names[NR] = name; products[NR] = product
+          versions[NR] = ver; backups[NR] = is_backup
+          if (!is_backup && (!(product in latest) || ver > latest[product]))
+            latest[product] = ver
+        }
+        END {
+          for (i = 1; i <= NR; i++)
+            if (backups[i] || versions[i] != latest[products[i]])
+              print names[i]
+        }
+      '
+  )
+}
+
+printf 'Scanning...\n\n'
+scan_bundle_id_dirs "cache"  "$HOME/Library/Caches"
+scan_bundle_id_dirs "log"    "$HOME/Library/Logs"
+scan_jetbrains
+
+if [[ ${#paths[@]} -eq 0 ]]; then
+  printf 'Nothing to clean up.\n'
+  exit 0
+fi
+
+printf '%-10s  %-8s  %s\n' 'SECTION' 'SIZE' 'NAME'
+printf '%-10s  %-8s  %s\n' '----------' '--------' '----'
+for i in "${!paths[@]}"; do
+  printf '%-10s  %-8s  %s\n' "${labels[$i]}" "${sizes[$i]}" "${names[$i]}"
+done
+printf '\n'
+
+$DRY_RUN && { printf '(dry run — nothing deleted)\n'; exit 0; }
+
+read -rp "Delete all ${#paths[@]} item(s)? [y/N] " confirm || confirm=n
+case "$confirm" in
+  [yY])
+    for path in "${paths[@]}"; do
+      printf 'Removing %s\n' "$path"
+      rm -rf "$path"
+    done
+    printf 'Done.\n'
+    ;;
+  *)
+    printf 'Aborted.\n'
+    ;;
+esac

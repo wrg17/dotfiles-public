@@ -16,19 +16,19 @@ TMUX_CONF="$REPO_ROOT/tmux/.config/tmux/tmux.conf"
 # ── Pane navigation (vim-style) ────────────────────────────────────────────
 
 @test "tmux: h selects left pane" {
-  grep -qF 'bind h select-pane -L' "$TMUX_CONF"
+  grep -qF 'bind -r h select-pane -L' "$TMUX_CONF"
 }
 
 @test "tmux: j selects down pane" {
-  grep -qF 'bind j select-pane -D' "$TMUX_CONF"
+  grep -qF 'bind -r j select-pane -D' "$TMUX_CONF"
 }
 
 @test "tmux: k selects up pane" {
-  grep -qF 'bind k select-pane -U' "$TMUX_CONF"
+  grep -qF 'bind -r k select-pane -U' "$TMUX_CONF"
 }
 
 @test "tmux: l selects right pane" {
-  grep -qF 'bind l select-pane -R' "$TMUX_CONF"
+  grep -qF 'bind -r l select-pane -R' "$TMUX_CONF"
 }
 
 # ── Pane splits ────────────────────────────────────────────────────────────
@@ -79,8 +79,12 @@ TMUX_CONF="$REPO_ROOT/tmux/.config/tmux/tmux.conf"
   grep -q 'begin-selection' "$TMUX_CONF"
 }
 
-@test "tmux: y yanks to system clipboard via xclip" {
-  grep -q 'xclip -selection clipboard' "$TMUX_CONF"
+@test "tmux: y yanks to system clipboard" {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    grep -q 'pbcopy' "$TMUX_CONF"
+  else
+    grep -q 'xclip -selection clipboard' "$TMUX_CONF"
+  fi
 }
 
 @test "tmux: mouse drag copies to clipboard" {
@@ -109,10 +113,20 @@ TMUX_CONF="$REPO_ROOT/tmux/.config/tmux/tmux.conf"
   grep -qF 'renumber-windows on' "$TMUX_CONF"
 }
 
-@test "tmux: escape time is 0ms" {
-  grep -qF 'escape-time 0' "$TMUX_CONF"
+@test "tmux: escape time is at least 50ms (avoids fragmenting key sequences)" {
+  local val
+  val=$(grep -E '^set\s+-sg\s+escape-time' "$TMUX_CONF" | awk '{print $NF}')
+  [ -n "$val" ]
+  [ "$val" -ge 50 ]
 }
 
 @test "tmux: reload bind is r" {
   grep -q 'bind r source-file' "$TMUX_CONF"
+}
+
+@test "tmux: default-terminal has a terminfo entry on this system" {
+  local term
+  term=$(grep -E '^set\s+-g\s+default-terminal' "$TMUX_CONF" | grep -o '"[^"]*"' | tr -d '"')
+  [ -n "$term" ]
+  infocmp "$term" >/dev/null 2>&1
 }
