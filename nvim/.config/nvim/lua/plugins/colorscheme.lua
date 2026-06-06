@@ -1,14 +1,17 @@
 return {
   {
-    "folke/tokyonight.nvim",
+    "Mofiqul/dracula.nvim",
+    lazy = false,
+    priority = 1000,
     opts = {
-      style = "night", -- night | storm | moon | day
-      transparent = false,
-      terminal_colors = true,
-      styles = {
-        comments = { italic = true },
-        keywords = { italic = true },
-      },
+      italic_comment = true,
+      transparent_bg = false,
+    },
+  },
+  {
+    "LazyVim/LazyVim",
+    opts = {
+      colorscheme = "dracula",
     },
   },
 }

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Network speed test: networkQuality on macOS, speedtest-cli on Linux
+set -euo pipefail
+
+if [[ "$OSTYPE" == darwin* ]]; then
+  if ! command -v networkQuality >/dev/null 2>&1; then
+    printf 'networkQuality requires macOS 12 Monterey or later\n' >&2
+    exit 1
+  fi
+  networkQuality
+else
+  if command -v speedtest-cli >/dev/null 2>&1; then
+    speedtest-cli
+  else
+    printf 'Install: sudo apt install speedtest-cli\n' >&2
+    exit 1
+  fi
+fi

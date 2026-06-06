@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 }
 
 @test "public packages all exist as directories" {
-  for pkg in nvim starship tmux wezterm yazi zsh; do
+  for pkg in nvim sheldon starship tmux wezterm yazi zsh; do
     [ -d "$REPO_ROOT/$pkg" ]
   done
 }
@@ -29,6 +29,7 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 @test "no private paths in other public packages" {
   run grep -r "homelab" \
     "$REPO_ROOT/nvim" \
+    "$REPO_ROOT/sheldon" \
     "$REPO_ROOT/starship" \
     "$REPO_ROOT/tmux" \
     "$REPO_ROOT/wezterm" \

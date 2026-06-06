@@ -9,6 +9,12 @@
 typeset -U path PATH
 
 path=(
+  $PYENV_ROOT/bin
+  $PYENV_ROOT/shims
+  $GOENV_ROOT/bin
+  $GOENV_ROOT/shims
+  $HOME/.jenv/bin
+  $HOME/.jenv/shims
   /home/linuxbrew/.linuxbrew/bin
   /home/linuxbrew/.linuxbrew/sbin
   $HOME/.local/bin
@@ -20,26 +26,107 @@ path=(
   $path
 )
 
-export DOCKER_HOST=unix:///run/user/1000/docker.sock
-
-export VCPKG_ROOT="$HOME/dev/vcpkg"
-export XDG_DATA_DIRS="/var/lib/snapd/desktop/applications:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+if [[ "$OSTYPE" == linux-gnu* ]]; then
+  export DOCKER_HOST=unix:///run/user/1000/docker.sock
+  export VCPKG_ROOT="$HOME/dev/vcpkg"
+  export XDG_DATA_DIRS="/var/lib/snapd/desktop/applications:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+fi
 
 # ----------------------------------------------------------------------------
-# OH MY ZSH
+# INIT CACHE HELPER
+# Sources cached output of a command; regenerates only when trigger-file is
+# newer than the cache (e.g. after brew upgrade or editing plugins.toml).
 # ----------------------------------------------------------------------------
-ZSH_THEME=""
-zstyle ':omz:update' mode auto
+_initcache() {
+  local name=$1 trigger=$2; shift 2
+  local cache="$XDG_CACHE_HOME/zsh/${name}.zsh"
+  if [[ ! -f $cache || $trigger -nt $cache ]]; then
+    "$@" >| "$cache"
+  fi
+  source "$cache"
+}
 
-plugins=(
-  git
-  gitignore
-  zsh-autosuggestions
-  zsh-syntax-highlighting
-  history-substring-search
-)
+# ----------------------------------------------------------------------------
+# PLUGINS (sheldon)
+# ----------------------------------------------------------------------------
+HISTORY_SUBSTRING_SEARCH_HIGHLIGHT_FOUND='fg=#50fa7b,bold'
+HISTORY_SUBSTRING_SEARCH_HIGHLIGHT_NOT_FOUND='fg=#ff5555,bold'
 
-source $ZSH/oh-my-zsh.sh
+# zsh-syntax-highlighting palette is supplied upstream by dracula/zsh-syntax-highlighting
+# (loaded via sheldon after the main highlighter)
+ZSH_HIGHLIGHT_HIGHLIGHTERS=(main brackets pattern)
+if command -v sheldon >/dev/null; then
+  _sheldon_trigger="${XDG_CONFIG_HOME}/sheldon/plugins.lock"
+  [[ -f "$_sheldon_trigger" ]] || _sheldon_trigger="${XDG_CONFIG_HOME}/sheldon/plugins.toml"
+  _initcache sheldon "$_sheldon_trigger" sheldon source
+  unset _sheldon_trigger
+fi
+
+typeset -A ZSH_HIGHLIGHT_STYLES
+ZSH_HIGHLIGHT_PATTERNS+=('rm -rf *' 'fg=#ff5555,bold')
+ZSH_HIGHLIGHT_PATTERNS+=('rm -r *'  'fg=#ff5555,bold')
+
+# ----------------------------------------------------------------------------
+# COMPLETIONS
+# ----------------------------------------------------------------------------
+autoload -Uz compinit
+() {
+  if [[ $# -gt 0 || ! -f "$ZSH_COMPDUMP" ]]; then
+    compinit -u -d "$ZSH_COMPDUMP"
+  else
+    compinit -C -d "$ZSH_COMPDUMP"
+  fi
+} ${ZSH_COMPDUMP}(N.mh+24)
+
+zstyle ':completion:*' menu select
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' use-cache yes
+zstyle ':completion:*' cache-path "$XDG_CACHE_HOME/zsh/compcache"
+
+# ----------------------------------------------------------------------------
+# KEY BINDINGS
+# ----------------------------------------------------------------------------
+bindkey -e
+zmodload zsh/terminfo
+
+(( ${+terminfo[smkx]} )) && (( ${+terminfo[rmkx]} )) && {
+  function zle-line-init()   { echoti smkx }
+  function zle-line-finish() { echoti rmkx }
+  zle -N zle-line-init
+  zle -N zle-line-finish
+}
+
+# Arrow keys — history-substring-search (loaded via sheldon)
+bindkey "${terminfo[kcuu1]:-$'\e[A'}" history-substring-search-up
+bindkey "${terminfo[kcud1]:-$'\e[B'}" history-substring-search-down
+bindkey $'\eOA' history-substring-search-up
+bindkey $'\eOB' history-substring-search-down
+
+# Home / End / Delete
+[[ -n "${terminfo[khome]}" ]] && bindkey "${terminfo[khome]}" beginning-of-line
+[[ -n "${terminfo[kend]}"  ]] && bindkey "${terminfo[kend]}"  end-of-line
+bindkey '\033[4~' end-of-line    # fn+right in WezTerm
+bindkey '\033[1~' beginning-of-line  # fn+left in WezTerm
+bindkey '^?' backward-delete-char
+[[ -n "${terminfo[kdch1]}" ]] && bindkey "${terminfo[kdch1]}" delete-char || bindkey '^[[3~' delete-char
+
+# Ctrl+arrows — word movement; Ctrl+Delete — kill word
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
+bindkey '^[[3;5~' kill-word
+
+# Shift+Tab — reverse completion menu
+[[ -n "${terminfo[kcbt]}" ]] && bindkey "${terminfo[kcbt]}" reverse-menu-complete
+
+# Ctrl+R — incremental history search; Space — history expansion
+bindkey '^r' history-incremental-search-backward
+bindkey ' '  magic-space
+
+# Ctrl+X Ctrl+E — edit command line in $EDITOR
+autoload -Uz edit-command-line
+zle -N edit-command-line
+bindkey '^x^e' edit-command-line
 
 # ----------------------------------------------------------------------------
 # HISTORY
@@ -70,10 +157,19 @@ node() { _load_nvm; node "$@"; }
 npm()  { _load_nvm; npm "$@"; }
 npx()  { _load_nvm; npx "$@"; }
 
-# Optional tools — load only if installed
+## Language version managers
+command -v pyenv >/dev/null && eval "$(pyenv init -)"
+command -v goenv >/dev/null && eval "$(goenv init -)"
+command -v jenv  >/dev/null && eval "$(jenv init -)"
+
+## LLVM (brew keg-only on macOS — not auto-linked, must be explicit)
+[[ -n "${HOMEBREW_PREFIX:-}" && -d "$HOMEBREW_PREFIX/opt/llvm/bin" ]] && \
+  path=("$HOMEBREW_PREFIX/opt/llvm/bin" $path)
+
+## Optional tools — load only if installed
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
-command -v direnv >/dev/null && eval "$(direnv hook zsh)"
+command -v zoxide >/dev/null && _initcache zoxide "$(command -v zoxide)" zoxide init zsh
+command -v direnv >/dev/null && _initcache direnv "$(command -v direnv)" direnv hook zsh
 
 upd() {
   echo "==> apt"
@@ -84,8 +180,20 @@ upd() {
   rustup update || return 1
   echo "==> pipx"
   pipx upgrade-all || return 1
-  echo "==> oh-my-zsh"
-  zsh "$ZSH/tools/upgrade.sh" || return 1
+  echo "==> sheldon"
+  sheldon lock --update || return 1
+  # Update git-cloned version managers (Linux only; brew handles macOS)
+  for _vm_dir in "$PYENV_ROOT" "$GOENV_ROOT" "$HOME/.jenv"; do
+    [[ -d "$_vm_dir/.git" ]] || continue
+    echo "==> $(basename $_vm_dir)"
+    git -C "$_vm_dir" pull --ff-only || return 1
+  done
+  unset _vm_dir
+  # Audit language EOL status after updating
+  if command -v bats >/dev/null 2>&1 && [[ -f "${DOTFILES}/test/langs.bats" ]]; then
+    echo "==> lang audit"
+    bats "${DOTFILES}/test/langs.bats" || true
+  fi
   echo "✓ all updates complete"
 }
 
@@ -120,8 +228,7 @@ alias weztermcfg='nvim $XDG_CONFIG_HOME/wezterm/wezterm.lua'
 alias starshipcfg='nvim $XDG_CONFIG_HOME/starship.toml'
 alias tmuxcfg='nvim $XDG_CONFIG_HOME/tmux/tmux.conf'
 
-# Clipboard — clip (write) is ~/.local/bin/clip, which handles macOS/Wayland/X11.
-# clipout (read) needs a platform alias since there is no equivalent script.
+# Clipboard
 if [[ "$OSTYPE" == darwin* ]]; then
   alias clipout='pbpaste'
 elif command -v wl-paste >/dev/null 2>&1; then
@@ -193,9 +300,11 @@ alias venv='source .venv/bin/activate'
 
 # ----------------------------------------------------------------------------
 # SSH AGENT (interactive shells only)
+# macOS launchd provides SSH_AUTH_SOCK automatically; only start an agent on
+# Linux (or any system where launchd isn't managing it).
 # ----------------------------------------------------------------------------
 if [[ -o interactive ]] && [[ -t 0 ]]; then
-  if ! pgrep -u "$USER" ssh-agent > /dev/null; then
+  if [[ -z "$SSH_AUTH_SOCK" ]]; then
     eval "$(ssh-agent -s)" >/dev/null
   fi
   ssh-add -l >/dev/null 2>&1 || ssh-add ~/.ssh/id_ed25519 2>/dev/null
@@ -216,7 +325,8 @@ fi
 # ----------------------------------------------------------------------------
 # PROMPT
 # ----------------------------------------------------------------------------
-command -v starship >/dev/null && eval "$(starship init zsh)"
+command -v starship >/dev/null && _initcache starship "$(command -v starship)" starship init zsh
+unset -f _initcache
 setopt NO_BANG_HIST
 
 # ----------------------------------------------------------------------------

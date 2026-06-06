@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# Report files in ~/Downloads grouped by type.
+# Usage: downloads-report [--older-than=DAYS] [--type=TYPE] [--paths]
+#
+#   --older-than=N   only show files not modified in the last N days
+#   --type=TYPE      limit to one type: images, videos, audio, archives,
+#                    installers, documents, code, other
+#   --paths          output bare file paths (for piping to xargs rm, trash, etc.)
+set -euo pipefail
+
+DOWNLOADS_DIR="${DOWNLOADS_DIR:-$HOME/Downloads}"
+OLDER_THAN=0
+TYPE_FILTER=""
+PATHS_MODE=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --older-than=*) OLDER_THAN="${arg#*=}" ;;
+    --type=*)       TYPE_FILTER="${arg#*=}" ;;
+    --paths)        PATHS_MODE=true ;;
+    *)
+      printf 'Unknown option: %s\n' "$arg" >&2
+      printf 'Usage: downloads-report [--older-than=N] [--type=TYPE] [--paths]\n' >&2
+      exit 1
+      ;;
+  esac
+done
+
+classify() {
+  local ext
+  ext=$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]')
+  case "$ext" in
+    jpg|jpeg|png|gif|webp|heic|svg|bmp|tiff|raw|cr2|nef) printf 'images'     ;;
+    mp4|mov|avi|mkv|m4v|wmv|webm|flv)                    printf 'videos'     ;;
+    mp3|m4a|wav|flac|aac|ogg|opus|wma)                   printf 'audio'      ;;
+    zip|tar|gz|bz2|xz|rar|7z|tgz|tbz2)                  printf 'archives'   ;;
+    dmg|pkg|mpkg|iso|img)                                 printf 'installers' ;;
+    pdf|doc|docx|xls|xlsx|ppt|pptx|pages|numbers|keynote|txt|md|rtf) printf 'documents' ;;
+    json|csv|xml|yaml|yml|sh|py|js|ts|rb|go|sql)         printf 'code'       ;;
+    *)                                                    printf 'other'      ;;
+  esac
+}
+
+# Returns 0 if a file passes the TYPE_FILTER, 1 if it should be skipped.
+# Accepts both category names (images, documents, …) and raw extensions (jpg, pdf, …).
+matches_filter() {
+  [[ -z "$TYPE_FILTER" ]] && return 0
+  local name="$1" type="$2"
+  case "$TYPE_FILTER" in
+    images|videos|audio|archives|installers|documents|code|other)
+      [[ "$type" == "$TYPE_FILTER" ]]
+      ;;
+    *)
+      local ext
+      ext=$(printf '%s' "${name##*.}" | tr '[:upper:]' '[:lower:]')
+      [[ "$ext" == "$TYPE_FILTER" ]]
+      ;;
+  esac
+}
+
+[[ -d "$DOWNLOADS_DIR" ]] || { printf 'downloads-report: not found: %s\n' "$DOWNLOADS_DIR" >&2; exit 1; }
+
+find_args=("$DOWNLOADS_DIR" -maxdepth 1 -type f)
+[[ "$OLDER_THAN" -gt 0 ]] && find_args+=(-mtime +"$OLDER_THAN")
+find_args+=(-print0)
+
+files=()
+while IFS= read -r -d '' f; do
+  files+=("$f")
+done < <(find "${find_args[@]}")
+
+if [[ ${#files[@]} -eq 0 ]]; then
+  $PATHS_MODE || printf 'No files found.\n'
+  exit 0
+fi
+
+if $PATHS_MODE; then
+  for f in "${files[@]}"; do
+    type=$(classify "$(basename "$f")")
+    matches_filter "$(basename "$f")" "$type" || continue
+    printf '%s\n' "$f"
+  done
+  exit 0
+fi
+
+# Pipe type<tab>kb pairs into awk for grouping and human-readable formatting.
+{
+  for f in "${files[@]}"; do
+    type=$(classify "$(basename "$f")")
+    matches_filter "$(basename "$f")" "$type" || continue
+    kb=$(du -sk "$f" 2>/dev/null | cut -f1) || kb=0
+    printf '%s\t%d\n' "$type" "$kb"
+  done
+} | awk -F'\t' '
+  { counts[$1]++; sizes[$1]+=$2; total_c++; total_kb+=$2 }
+  END {
+    if (total_c == 0) { print "No files found."; exit }
+    n = split("images videos audio archives installers documents code other", order, " ")
+    printf "%-12s  %5s  %s\n", "TYPE", "FILES", "SIZE"
+    printf "%-12s  %5s  %s\n", "------------", "-----", "--------"
+    for (i = 1; i <= n; i++) {
+      t = order[i]
+      if (!(t in counts)) continue
+      printf "%-12s  %5d  %s\n", t, counts[t], fmt(sizes[t])
+    }
+    printf "%-12s  %5d  %s\n", "total", total_c, fmt(total_kb)
+  }
+  function fmt(kb) {
+    if (kb >= 1048576) return sprintf("%.1fG", kb/1048576)
+    if (kb >= 1024)    return sprintf("%.1fM", kb/1024)
+    return sprintf("%dK", kb)
+  }
+'
