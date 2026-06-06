@@ -1,0 +1,39 @@
+# Test tooling — required by `make test`
+# Note: actionlint has no apt package; install via: go install github.com/rhysd/actionlint/cmd/actionlint@latest
+bats
+shellcheck
+expect
+
+# pyenv build dependencies
+build-essential
+libssl-dev
+zlib1g-dev
+libbz2-dev
+libreadline-dev
+libsqlite3-dev
+libncursesw5-dev
+xz-utils
+tk-dev
+libxml2-dev
+libxmlsec1-dev
+libffi-dev
+liblzma-dev
+
+# C++ / LLVM toolchain
+clang
+lld
+lldb
+
+# Core tools
+tmux
+wezterm
+watch
+
+# Docker
+docker-ce
+docker-ce-cli
+containerd.io
+docker-buildx-plugin
+docker-compose-plugin
+
+# Shell, editor, file manager — installed via bootstrap/install-tools.sh

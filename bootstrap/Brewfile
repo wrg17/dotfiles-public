@@ -1,0 +1,29 @@
+# Test tooling — required by `make test`
+brew "bats-core"
+brew "shellcheck"
+brew "actionlint"
+brew "expect"
+
+# Language version managers
+brew "pyenv"
+brew "goenv"
+brew "jenv"
+brew "llvm"
+
+# Core tools
+brew "tmux"
+brew "sheldon"
+brew "watch"
+brew "gh"
+
+# Shell, editor, file manager — installed via bootstrap/install-tools.sh
+
+# Container tooling (colima replaces Docker Desktop — no daemon, no license)
+brew "colima"
+brew "docker"
+brew "docker-compose"
+brew "docker-buildx"
+brew "docker-credential-helper"
+
+# GUI apps
+cask "wezterm"

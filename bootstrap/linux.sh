@@ -97,7 +97,14 @@ mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$PKG_FILE")
 sudo apt-get install -y --no-install-recommends "${PKGS[@]}"
 
 # -----------------------------------------------------------------------------
-# 4. Post-install configuration
+# 4. Binary tools (not in apt)
+# -----------------------------------------------------------------------------
+
+log "Installing binary tools"
+"$DOTFILES_DIR/bootstrap/install-tools.sh"
+
+# -----------------------------------------------------------------------------
+# 5. Post-install configuration
 # -----------------------------------------------------------------------------
 
 log "Post-install configuration"

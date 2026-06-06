@@ -12,7 +12,8 @@ case "$OSTYPE" in
   *) echo "Unsupported OS: $OSTYPE" >&2; exit 1 ;;
 esac
 
-SRC="$HOME/dotfiles/jetbrains-shared"
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="$DOTFILES_DIR/jetbrains-shared"
 
 [[ -d "$SRC" ]]     || { echo "Error: $SRC does not exist" >&2; exit 1; }
 [[ -d "$JB_ROOT" ]] || { echo "No JetBrains dir at $JB_ROOT" >&2; exit 0; }

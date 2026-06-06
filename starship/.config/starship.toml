@@ -6,17 +6,27 @@ $git_branch\
 $git_status\
 $python\
 $nodejs\
+$rust\
+$docker_context\
 $cmd_duration\
+$time\
 $line_break\
 $character"""
+
+# Dracula palette
+# bg #282a36 | current-line #44475a | fg #f8f8f2 | comment #6272a4
+# cyan #8be9fd | green #50fa7b | orange #ffb86c | pink #ff79c6
+# purple #bd93f9 | red #ff5555 | yellow #f1fa8c
 
 [directory]
 truncation_length = 4
 truncate_to_repo = true
+style = "bold #8be9fd"
 
 [git_branch]
 format = '[$symbol$branch]($style) '
 symbol = " "
+style = "bold #ff79c6"
 
 [git_status]
 format = '([$all_status$ahead_behind]($style) )'
@@ -27,37 +37,41 @@ modified = "!${count}"
 staged = "+${count}"
 untracked = "?${count}"
 deleted = "✘${count}"
+style = "bold #ffb86c"
 
 [python]
 format = '[${symbol}${pyenv_prefix}(${version} )(\($virtualenv\))]($style) '
 symbol = " "
 detect_files = ['requirements.txt', 'pyproject.toml', 'Pipfile', '.python-version']
-style = "yellow"
+style = "#f1fa8c"
 
 [nodejs]
 format = '[$symbol($version)]($style) '
 symbol = " "
+style = "#50fa7b"
 
 [cmd_duration]
 min_time = 2_000
 format = '[$duration]($style) '
-style = "yellow"
+style = "#f1fa8c"
 
 [character]
-success_symbol = "[❯](green)"
-error_symbol = "[❯](red)"
+success_symbol = "[❯](#50fa7b)"
+error_symbol = "[❯](#ff5555)"
 
 [docker_context]
 format = '[$symbol$context]($style) '
 symbol = " "
 only_with_files = true    # only shows when docker-compose.yml etc present
+style = "#8be9fd"
 
 [rust]
 format = '[$symbol($version)]($style) '
 symbol = " "
+style = "#ffb86c"
 
 [time]
 disabled = false
 format = '[$time]($style) '
 time_format = "%H:%M"
-style = "dimmed white"
+style = "#6272a4"

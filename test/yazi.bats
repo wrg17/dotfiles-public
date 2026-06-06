@@ -69,6 +69,12 @@ YAZI_DIR="$REPO_ROOT/yazi/.config/yazi"
   grep -qF "run = 'nvim %s'" "$YAZI_DIR/yazi.toml"
 }
 
+@test "yazi: config parses without errors" {
+  command -v yazi >/dev/null || skip "yazi not installed"
+  run bash -c "timeout 2 yazi 2>&1; true"
+  [[ "$output" != *"TOML parse error"* ]]
+}
+
 @test "yazi: git fetcher is enabled" {
   grep -qF 'id = "git"' "$YAZI_DIR/yazi.toml"
 }

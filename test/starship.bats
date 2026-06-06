@@ -59,12 +59,12 @@ STARSHIP_CFG="$REPO_ROOT/starship/.config/starship.toml"
 
 # ── Character (prompt symbol) ──────────────────────────────────────────────
 
-@test "starship: success prompt symbol is ❯" {
-  grep -qF 'success_symbol = "[❯](green)"' "$STARSHIP_CFG"
+@test "starship: success prompt symbol is ❯ in dracula green" {
+  grep -qF 'success_symbol = "[❯](#50fa7b)"' "$STARSHIP_CFG"
 }
 
-@test "starship: error prompt symbol is ❯ in red" {
-  grep -qF 'error_symbol = "[❯](red)"' "$STARSHIP_CFG"
+@test "starship: error prompt symbol is ❯ in dracula red" {
+  grep -qF 'error_symbol = "[❯](#ff5555)"' "$STARSHIP_CFG"
 }
 
 # ── Docker ─────────────────────────────────────────────────────────────────
