@@ -5,6 +5,7 @@
 NVM_DIR="${NVM_DIR:-$HOME/.local/share/nvm}"
 PYENV_ROOT="${PYENV_ROOT:-$HOME/.local/share/pyenv}"
 GOENV_ROOT="${GOENV_ROOT:-$HOME/.local/share/goenv}"
+RBENV_ROOT="${RBENV_ROOT:-$HOME/.local/share/rbenv}"
 JENV_ROOT="$HOME/.jenv"
 
 WARNS=0
@@ -97,6 +98,7 @@ fi
 _section "Language version managers"
 if command -v pyenv >/dev/null 2>&1; then _ok "pyenv"; else _warn "pyenv not found"; fi
 if command -v goenv >/dev/null 2>&1; then _ok "goenv"; else _warn "goenv not found"; fi
+if command -v rbenv >/dev/null 2>&1; then _ok "rbenv"; else _warn "rbenv not found"; fi
 if command -v jenv  >/dev/null 2>&1; then _ok "jenv";  else _warn "jenv not found"; fi
 if command -v rustup >/dev/null 2>&1; then
   rust_check="$(rustup check 2>/dev/null)" || rust_check=""
@@ -175,6 +177,20 @@ else
     done
   fi
   [[ $found -eq 0 ]] && _info "go — no goenv versions installed"
+
+  # Ruby (rbenv)
+  found=0
+  if [[ -d "$RBENV_ROOT/versions" ]]; then
+    for vdir in "$RBENV_ROOT/versions"/*/; do
+      [[ -d "$vdir" ]] || continue
+      v="$(basename "$vdir")"
+      cycle="$(printf '%s' "$v" | grep -oE '^[0-9]+\.[0-9]+')"
+      [[ -n "$cycle" ]] || continue
+      _eol_check "ruby" "ruby $v" "$cycle"
+      found=1
+    done
+  fi
+  [[ $found -eq 0 ]] && _info "ruby — no rbenv versions installed"
 
   # Java (jenv) — deduplicate by major version
   found=0

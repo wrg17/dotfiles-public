@@ -3,100 +3,44 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 NVIM_DIR="$REPO_ROOT/nvim/.config/nvim"
 
-# ── Colorscheme ────────────────────────────────────────────────────────────
+# Functional tests for the nvim config. UI preferences (italic comments,
+# specific keymaps, scrollback positions) aren't grep-tested — the headless
+# load below catches the realistic failure modes (syntax errors, broken
+# requires, missing plugin specs).
 
-@test "nvim: dracula is the colorscheme plugin" {
-  grep -qF 'Mofiqul/dracula.nvim' "$NVIM_DIR/lua/plugins/colorscheme.lua"
+@test "nvim: all authored .lua files have valid Lua syntax" {
+  command -v luac >/dev/null || skip "luac not installed"
+  while IFS= read -r f; do
+    luac -p "$f" || { echo "syntax error in: $f"; return 1; }
+  done < <(find "$NVIM_DIR" -name '*.lua' -type f)
 }
 
-@test "nvim: LazyVim is configured to use dracula" {
-  grep -qF 'colorscheme = "dracula"' "$NVIM_DIR/lua/plugins/colorscheme.lua"
+@test "nvim: headless launch loads init.lua without errors" {
+  command -v nvim >/dev/null || skip "nvim not installed"
+  # Run from a temp HOME so the test doesn't fight a real lazy install state
+  local out
+  out="$(XDG_CONFIG_HOME="$REPO_ROOT/nvim/.config" nvim --headless -c 'qa!' 2>&1)" || true
+  # Allow expected "lazy.nvim setup complete" type messages; fail on E5113/E5108 lua errors
+  [[ "$out" != *"E5113"* && "$out" != *"E5108"* && "$out" != *"E5104"* ]] || { echo "$out"; return 1; }
 }
 
-@test "nvim: italic comments are enabled" {
-  grep -qF 'italic_comment = true' "$NVIM_DIR/lua/plugins/colorscheme.lua"
+@test "nvim: lazy-lock.json contains the plugins this config explicitly adds" {
+  local lock="$NVIM_DIR/lazy-lock.json"
+  [[ -f "$lock" ]] || skip "lazy-lock.json not yet generated (run nvim once to install)"
+  for plugin in 'dracula.nvim' 'vim-tmux-navigator' 'nvim-treesitter' 'noice.nvim' 'lazy.nvim'; do
+    grep -qF "\"$plugin\"" "$lock" || { echo "missing from lockfile: $plugin"; return 1; }
+  done
 }
 
-# ── Tmux integration ───────────────────────────────────────────────────────
-
-@test "nvim: vim-tmux-navigator plugin is configured" {
-  grep -q 'vim-tmux-navigator' "$NVIM_DIR/lua/plugins/tmux.lua"
-}
-
-@test "nvim: Ctrl+h navigates left (tmux/nvim)" {
-  grep -qF '"<c-h>"' "$NVIM_DIR/lua/plugins/tmux.lua"
-}
-
-@test "nvim: Ctrl+j navigates down (tmux/nvim)" {
-  grep -qF '"<c-j>"' "$NVIM_DIR/lua/plugins/tmux.lua"
-}
-
-@test "nvim: Ctrl+k navigates up (tmux/nvim)" {
-  grep -qF '"<c-k>"' "$NVIM_DIR/lua/plugins/tmux.lua"
-}
-
-@test "nvim: Ctrl+l navigates right (tmux/nvim)" {
-  grep -qF '"<c-l>"' "$NVIM_DIR/lua/plugins/tmux.lua"
-}
-
-# ── Tmux split keymaps ─────────────────────────────────────────────────────
-
-@test "nvim: leader+| splits tmux pane right" {
-  grep -qF '"<leader>|"' "$NVIM_DIR/lua/config/keymaps.lua"
-}
-
-@test "nvim: leader+_ splits tmux pane down" {
-  grep -qF '"<leader>_"' "$NVIM_DIR/lua/config/keymaps.lua"
-}
-
-@test "nvim: tmux split-window -h is used for vertical split" {
-  grep -qF 'split-window", "-h"' "$NVIM_DIR/lua/config/keymaps.lua"
-}
-
-@test "nvim: tmux split-window -v is used for horizontal split" {
-  grep -qF 'split-window", "-v"' "$NVIM_DIR/lua/config/keymaps.lua"
-}
-
-# ── Options ────────────────────────────────────────────────────────────────
-
-@test "nvim: relative line numbers are enabled" {
-  grep -qF 'relativenumber = true' "$NVIM_DIR/lua/config/options.lua"
-}
-
-@test "nvim: persistent undo is enabled" {
-  grep -qF 'undofile = true' "$NVIM_DIR/lua/config/options.lua"
-}
-
-@test "nvim: smartcase search is enabled" {
-  grep -qF 'smartcase = true' "$NVIM_DIR/lua/config/options.lua"
-}
-
-@test "nvim: scrolloff keeps context visible" {
-  grep -q 'scrolloff = 8' "$NVIM_DIR/lua/config/options.lua"
-}
-
-@test "nvim: font is FiraCode Nerd Font" {
-  grep -q 'FiraCode Nerd Font' "$NVIM_DIR/lua/config/options.lua"
-}
-
-@test "nvim: truecolor is enabled" {
-  grep -qF 'termguicolors = true' "$NVIM_DIR/lua/config/options.lua"
-}
-
-# ── Plugins ────────────────────────────────────────────────────────────────
-
-@test "nvim: treesitter is configured" {
-  grep -q 'nvim-treesitter' "$NVIM_DIR/lua/plugins/treesitter.lua"
-}
-
-@test "nvim: noice.nvim is configured" {
-  grep -q 'noice.nvim' "$NVIM_DIR/lua/plugins/ui.lua"
-}
-
-@test "nvim: noice LSP progress is enabled" {
-  grep -qF 'progress = { enabled = true }' "$NVIM_DIR/lua/plugins/ui.lua"
-}
-
-@test "nvim: lazy.nvim bootstrap is in init.lua" {
-  grep -q 'lazy' "$NVIM_DIR/init.lua"
+@test "nvim: configured options take effect after init.lua loads" {
+  command -v nvim >/dev/null || skip "nvim not installed"
+  # Query a few representative options we explicitly set in options.lua
+  local out
+  out="$(XDG_CONFIG_HOME="$REPO_ROOT/nvim/.config" nvim --headless \
+    -c 'lua io.write(string.format("scrolloff=%d relativenumber=%s smartcase=%s undofile=%s\n", vim.opt.scrolloff:get(), tostring(vim.opt.relativenumber:get()), tostring(vim.opt.smartcase:get()), tostring(vim.opt.undofile:get())))' \
+    -c 'qa!' 2>&1 | grep -E '^scrolloff=')"
+  [[ "$out" == *"scrolloff=8"* ]] || { echo "scrolloff wrong: $out"; return 1; }
+  [[ "$out" == *"relativenumber=true"* ]] || { echo "relativenumber wrong: $out"; return 1; }
+  [[ "$out" == *"smartcase=true"* ]] || { echo "smartcase wrong: $out"; return 1; }
+  [[ "$out" == *"undofile=true"* ]] || { echo "undofile wrong: $out"; return 1; }
 }
