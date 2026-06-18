@@ -24,8 +24,21 @@ export GOPATH="$XDG_DATA_HOME/go"
 export GOBIN="$GOPATH/bin"
 export PYENV_ROOT="$XDG_DATA_HOME/pyenv"
 export GOENV_ROOT="$XDG_DATA_HOME/goenv"
+export RBENV_ROOT="$XDG_DATA_HOME/rbenv"
 export NVM_DIR="$XDG_DATA_HOME/nvm"
-export NUGET_PACKAGES="$XDG_DATA_HOME/NuGet"
+
+# Expose nvm's default node to non-interactive shells (zsh -c, automation).
+# Avoids sourcing nvm.sh — that's left lazy-loaded in .zshrc for ~500ms savings.
+# Follow alias chain: default -> lts/* -> lts/krypton -> v24.16.0
+if [[ -d "$NVM_DIR/versions/node" ]]; then
+  _nvm_ver="$(<"$NVM_DIR/alias/default" 2>/dev/null)"
+  while [[ -n "$_nvm_ver" && -f "$NVM_DIR/alias/$_nvm_ver" ]]; do
+    _nvm_ver="$(<"$NVM_DIR/alias/$_nvm_ver")"
+  done
+  [[ -d "$NVM_DIR/versions/node/$_nvm_ver/bin" ]] && \
+    export PATH="$NVM_DIR/versions/node/$_nvm_ver/bin:$PATH"
+  unset _nvm_ver
+fi
 
 export SOPS_AGE_KEY_FILE="${XDG_CONFIG_HOME}/sops/age/keys.txt"
 
@@ -33,8 +46,6 @@ export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
 export NPM_CONFIG_CACHE="$XDG_CACHE_HOME/npm"
 export DOCKER_CONFIG="$XDG_CONFIG_HOME/docker"
 export LESSHISTFILE="$XDG_STATE_HOME/less/history"
-export PYTHONSTARTUP="$XDG_CONFIG_HOME/python/pythonrc"
-export WGETRC="$XDG_CONFIG_HOME/wgetrc"
 
 export ZSH_COMPDUMP="$XDG_CACHE_HOME/zsh/zcompdump"
 

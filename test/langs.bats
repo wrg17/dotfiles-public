@@ -5,6 +5,7 @@
 NVM_DIR="${NVM_DIR:-$HOME/.local/share/nvm}"
 PYENV_ROOT="${PYENV_ROOT:-$HOME/.local/share/pyenv}"
 GOENV_ROOT="${GOENV_ROOT:-$HOME/.local/share/goenv}"
+RBENV_ROOT="${RBENV_ROOT:-$HOME/.local/share/rbenv}"
 JENV_ROOT="$HOME/.jenv"
 
 _eol_date() {
@@ -76,6 +77,28 @@ _eol_date() {
     [[ "$eol" == "unreachable" ]] && skip "endoflife.date unreachable"
     if [[ "$eol" != "false" && -n "$eol" && "$eol" < "$today" ]]; then
       echo "EOL: go $v (since $eol)" >&3
+      failed=1
+    fi
+  done
+  [[ $failed -eq 0 ]]
+}
+
+# ── Ruby ──────────────────────────────────────────────────────────────────────
+
+@test "lang: all installed Ruby versions are supported" {
+  [[ -d "$RBENV_ROOT/versions" ]] || skip "no rbenv versions installed"
+  local today failed
+  today="$(date +%Y-%m-%d)"
+  failed=0
+  for vdir in "$RBENV_ROOT/versions"/*/; do
+    [[ -d "$vdir" ]] || continue
+    v="$(basename "$vdir")"
+    cycle="$(printf '%s' "$v" | grep -oE '^[0-9]+\.[0-9]+')"
+    [[ -n "$cycle" ]] || continue
+    eol="$(_eol_date "ruby" "$cycle")"
+    [[ "$eol" == "unreachable" ]] && skip "endoflife.date unreachable"
+    if [[ "$eol" != "false" && -n "$eol" && "$eol" < "$today" ]]; then
+      echo "EOL: ruby $v (since $eol)" >&3
       failed=1
     fi
   done

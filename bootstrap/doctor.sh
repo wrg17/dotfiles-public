@@ -63,6 +63,11 @@ if [[ "$(uname -s)" == Darwin ]]; then
     else
       _ok "colima-start script available"
     fi
+    if [[ -d "$HOME/.colima" ]]; then
+      _warn "legacy ~/.colima exists — colima ignores XDG_CONFIG_HOME until migrated; fix: colima stop && mv ~/.colima \"\${XDG_CONFIG_HOME:-\$HOME/.config}/colima\" && colima start"
+    else
+      _ok "colima config follows XDG_CONFIG_HOME"
+    fi
   fi
 fi
 

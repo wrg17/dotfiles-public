@@ -8,6 +8,7 @@ brew "expect"
 brew "pyenv"
 brew "goenv"
 brew "jenv"
+brew "rbenv"
 brew "llvm"
 
 # Core tools
@@ -15,6 +16,11 @@ brew "tmux"
 brew "sheldon"
 brew "watch"
 brew "gh"
+
+# Modern replacements for ls/cat/find — wired up as aliases in .zshrc
+brew "eza"
+brew "bat"
+brew "fd"
 
 # Shell, editor, file manager — installed via bootstrap/install-tools.sh
 

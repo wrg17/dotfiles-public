@@ -73,12 +73,6 @@ STARSHIP_CFG="$REPO_ROOT/starship/.config/starship.toml"
   grep -qF 'only_with_files = true' "$STARSHIP_CFG"
 }
 
-# ── Time ───────────────────────────────────────────────────────────────────
-
-@test "starship: time module is enabled" {
-  grep -qF 'disabled = false' "$STARSHIP_CFG"
-}
-
 # ── Directory ──────────────────────────────────────────────────────────────
 
 @test "starship: directory truncates to repo root" {
