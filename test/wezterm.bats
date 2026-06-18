@@ -3,75 +3,33 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 WEZTERM_CFG="$REPO_ROOT/wezterm/.config/wezterm/wezterm.lua"
 
-# ── Font ───────────────────────────────────────────────────────────────────
+# Functional tests — each one validates real behavior rather than asserting
+# that a particular line exists in the config. UI preferences (cursor style,
+# tab bar visibility, scrollback length, color scheme) aren't tested here;
+# they catch only "I deleted my own line" which git diff already does.
 
-@test "wezterm: font is FiraCode Nerd Font Mono" {
-  grep -qF 'family = "FiraCode Nerd Font Mono"' "$WEZTERM_CFG"
+@test "wezterm: config parses (valid Lua, all keys recognized)" {
+  command -v wezterm >/dev/null || skip "wezterm not installed"
+  run wezterm --config-file "$WEZTERM_CFG" ls-fonts --text "X"
+  [ "$status" -eq 0 ]
 }
 
-@test "wezterm: font size is 12" {
-  grep -qF 'font_size = 12.0' "$WEZTERM_CFG"
+@test "wezterm: configured font resolves with the expected family" {
+  command -v wezterm >/dev/null || skip "wezterm not installed"
+  run wezterm --config-file "$WEZTERM_CFG" ls-fonts --text "X"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"FiraCode Nerd Font Mono"* ]]
 }
 
-@test "wezterm: ligatures are enabled via harfbuzz" {
-  grep -q 'harfbuzz_features' "$WEZTERM_CFG"
+@test "wezterm: ligatures render (== maps to equal_equal.liga glyph)" {
+  command -v wezterm >/dev/null || skip "wezterm not installed"
+  run wezterm --config-file "$WEZTERM_CFG" ls-fonts --text "=="
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"equal_equal.liga"* ]]
 }
 
-# ── Color scheme ───────────────────────────────────────────────────────────
-
-@test "wezterm: color scheme is Dracula" {
-  grep -qF 'color_scheme = "Dracula (Official)"' "$WEZTERM_CFG"
-}
-
-# ── Default program (tmux) ─────────────────────────────────────────────────
-
-@test "wezterm: Homebrew paths added so tmux is found from GUI launch" {
+@test "wezterm: Homebrew paths are in the configured PATH (GUI launch finds tmux)" {
+  # This is the one grep worth keeping — catches the actual bug fix where
+  # macOS GUI launches of WezTerm.app inherit a minimal PATH missing brew.
   grep -qF 'PATH = "/opt/homebrew/bin:/usr/local/bin:' "$WEZTERM_CFG"
-}
-
-@test "wezterm: default program launches tmux" {
-  grep -qF '"tmux"' "$WEZTERM_CFG"
-}
-
-@test "wezterm: tmux attaches to or creates session named main" {
-  grep -qF '"-s", "main"' "$WEZTERM_CFG"
-}
-
-@test "wezterm: tmux new-session uses -A flag to attach if exists" {
-  grep -qF '"-A"' "$WEZTERM_CFG"
-}
-
-# ── Keyboard ───────────────────────────────────────────────────────────────
-
-
-# ── Rendering ──────────────────────────────────────────────────────────────
-
-@test "wezterm: OpenGL frontend is used" {
-  grep -qF 'front_end = "OpenGL"' "$WEZTERM_CFG"
-}
-
-@test "wezterm: Wayland is disabled (X11 preferred)" {
-  grep -qF 'enable_wayland = false' "$WEZTERM_CFG"
-}
-
-# ── UI behavior ────────────────────────────────────────────────────────────
-
-@test "wezterm: tab bar hides with single tab" {
-  grep -qF 'hide_tab_bar_if_only_one_tab = true' "$WEZTERM_CFG"
-}
-
-@test "wezterm: scrollback is 10000 lines" {
-  grep -qF 'scrollback_lines = 10000' "$WEZTERM_CFG"
-}
-
-@test "wezterm: auto-update is disabled" {
-  grep -qF 'check_for_updates = false' "$WEZTERM_CFG"
-}
-
-@test "wezterm: cursor style is blinking bar" {
-  grep -qF 'default_cursor_style = "BlinkingBar"' "$WEZTERM_CFG"
-}
-
-@test "wezterm: window decorations include title bar" {
-  grep -qF 'window_decorations = "TITLE | RESIZE"' "$WEZTERM_CFG"
 }

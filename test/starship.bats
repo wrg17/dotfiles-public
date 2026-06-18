@@ -3,84 +3,30 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 STARSHIP_CFG="$REPO_ROOT/starship/.config/starship.toml"
 
-# ── Prompt format ──────────────────────────────────────────────────────────
+# Functional tests for the starship config. Each catches real behavior;
+# preference-asserting greps (cmd_duration min_time, character colors,
+# truncation length, etc.) aren't tested — they only catch "I deleted
+# my own line" which git diff already does.
 
-@test "starship: format includes git_branch" {
-  grep -qF '$git_branch' "$STARSHIP_CFG"
+@test "starship: config parses (valid TOML, no invalid module references)" {
+  command -v starship >/dev/null || skip "starship not installed"
+  STARSHIP_CONFIG="$STARSHIP_CFG" run starship explain
+  [ "$status" -eq 0 ]
 }
 
-@test "starship: format includes git_status" {
-  grep -qF '$git_status' "$STARSHIP_CFG"
+@test "starship: prompt renders without error" {
+  command -v starship >/dev/null || skip "starship not installed"
+  STARSHIP_CONFIG="$STARSHIP_CFG" run starship prompt --status=0
+  [ "$status" -eq 0 ]
+  [ -n "$output" ]
 }
 
-@test "starship: format includes python" {
-  grep -qF '$python' "$STARSHIP_CFG"
-}
-
-@test "starship: format includes nodejs" {
-  grep -qF '$nodejs' "$STARSHIP_CFG"
-}
-
-@test "starship: format includes cmd_duration" {
-  grep -qF '$cmd_duration' "$STARSHIP_CFG"
-}
-
-@test "starship: format includes directory" {
-  grep -qF '$directory' "$STARSHIP_CFG"
-}
-
-# ── git_status symbols ─────────────────────────────────────────────────────
-
-@test "starship: git_status shows ahead count" {
-  grep -q 'ahead' "$STARSHIP_CFG"
-}
-
-@test "starship: git_status shows behind count" {
-  grep -q 'behind' "$STARSHIP_CFG"
-}
-
-@test "starship: git_status shows modified files" {
-  grep -q 'modified' "$STARSHIP_CFG"
-}
-
-@test "starship: git_status shows staged files" {
-  grep -q 'staged' "$STARSHIP_CFG"
-}
-
-@test "starship: git_status shows untracked files" {
-  grep -q 'untracked' "$STARSHIP_CFG"
-}
-
-# ── Command duration ───────────────────────────────────────────────────────
-
-@test "starship: cmd_duration only shows for commands over 2s" {
-  grep -qF 'min_time = 2_000' "$STARSHIP_CFG"
-}
-
-# ── Character (prompt symbol) ──────────────────────────────────────────────
-
-@test "starship: success prompt symbol is ❯ in dracula green" {
-  grep -qF 'success_symbol = "[❯](#50fa7b)"' "$STARSHIP_CFG"
-}
-
-@test "starship: error prompt symbol is ❯ in dracula red" {
-  grep -qF 'error_symbol = "[❯](#ff5555)"' "$STARSHIP_CFG"
-}
-
-# ── Docker ─────────────────────────────────────────────────────────────────
-
-@test "starship: docker context only shows near compose files" {
-  grep -qF 'only_with_files = true' "$STARSHIP_CFG"
-}
-
-# ── Directory ──────────────────────────────────────────────────────────────
-
-@test "starship: directory truncates to repo root" {
-  grep -qF 'truncate_to_repo = true' "$STARSHIP_CFG"
-}
-
-# ── Rust ───────────────────────────────────────────────────────────────────
-
-@test "starship: rust module is configured" {
-  grep -q '^\[rust\]' "$STARSHIP_CFG"
+@test "starship: format includes the language/tool modules we want shown" {
+  # Single grep — losing a module from the format silently removes it
+  # from the prompt forever. Worth catching, but not 6 separate tests.
+  local fmt
+  fmt="$(awk '/^format = """$/,/^"""$/' "$STARSHIP_CFG")"
+  for module in '$directory' '$git_branch' '$git_status' '$python' '$nodejs' '$rust' '$golang' '$java' '$ruby' '$docker_context' '$cmd_duration' '$character'; do
+    [[ "$fmt" == *"$module"* ]] || { echo "missing from format: $module"; return 1; }
+  done
 }
