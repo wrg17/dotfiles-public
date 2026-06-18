@@ -26,7 +26,7 @@ test:
 	@command -v bats       >/dev/null || { echo "bats not found - brew install bats-core"; exit 1; }
 	@command -v shellcheck >/dev/null || { echo "shellcheck not found - brew install shellcheck"; exit 1; }
 	@command -v actionlint >/dev/null || { echo "actionlint not found - brew install actionlint"; exit 1; }
-	bats $(filter-out test/langs.bats,$(wildcard test/*.bats))
+	bash test/run.sh $(filter-out test/langs.bats,$(wildcard test/*.bats))
 	actionlint
 
 doctor:

@@ -29,6 +29,12 @@ tmux
 wezterm
 watch
 
+# Modern replacements for ls/cat/find — wired up as aliases in .zshrc
+# fd is named fd-find on Ubuntu; the zshrc alias handles the rename
+eza
+bat
+fd-find
+
 # Docker
 docker-ce
 docker-ce-cli

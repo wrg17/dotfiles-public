@@ -13,6 +13,9 @@ ARCH="$(uname -m)"
 XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 PYENV_ROOT="${PYENV_ROOT:-$XDG_DATA_HOME/pyenv}"
 GOENV_ROOT="${GOENV_ROOT:-$XDG_DATA_HOME/goenv}"
+RBENV_ROOT="${RBENV_ROOT:-$XDG_DATA_HOME/rbenv}"
+CARGO_HOME="${CARGO_HOME:-$XDG_DATA_HOME/cargo}"
+RUSTUP_HOME="${RUSTUP_HOME:-$XDG_DATA_HOME/rustup}"
 
 log() { printf '\n==> %s\n' "$*"; }
 
@@ -102,7 +105,7 @@ link_docker_plugin() {
   local src plugin_dir target
   src="$(brew --prefix "$formula" 2>/dev/null)/bin/$formula"
   [[ -x "$src" ]] || { log "$formula not installed via brew — skipping"; return; }
-  plugin_dir="$HOME/.docker/cli-plugins"
+  plugin_dir="${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
   target="$plugin_dir/$formula"
   if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
     log "$formula plugin already linked — skipping"; return
@@ -118,10 +121,24 @@ install_docker_plugins() {
   link_docker_plugin docker-buildx
 }
 
+# ── rustup ────────────────────────────────────────────────────────────────────
+
+install_rustup() {
+  if command -v rustup >/dev/null 2>&1; then
+    log "rustup already installed — skipping"; return
+  fi
+  log "Installing rustup"
+  mkdir -p "$CARGO_HOME" "$RUSTUP_HOME"
+  CARGO_HOME="$CARGO_HOME" RUSTUP_HOME="$RUSTUP_HOME" \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --no-modify-path --default-toolchain stable
+}
+
 install_starship
 install_neovim
 install_yazi
 install_nvm
+install_rustup
 install_tpm
 install_docker_plugins
 
@@ -156,8 +173,19 @@ install_jenv() {
   git clone https://github.com/jenv/jenv.git "$HOME/.jenv"
 }
 
+install_rbenv() {
+  if command -v rbenv >/dev/null 2>&1 || [[ -d "$RBENV_ROOT" ]]; then
+    log "rbenv already installed — skipping"; return
+  fi
+  [[ "$OS" != "Linux" ]] && return
+  log "Installing rbenv"
+  git clone https://github.com/rbenv/rbenv.git "$RBENV_ROOT"
+  git clone https://github.com/rbenv/ruby-build.git "$RBENV_ROOT/plugins/ruby-build"
+}
+
 install_pyenv
 install_goenv
 install_jenv
+install_rbenv
 
 log "Tool installation complete"

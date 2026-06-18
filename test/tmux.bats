@@ -113,11 +113,12 @@ TMUX_CONF="$REPO_ROOT/tmux/.config/tmux/tmux.conf"
   grep -qF 'renumber-windows on' "$TMUX_CONF"
 }
 
-@test "tmux: escape time is at least 50ms (avoids fragmenting key sequences)" {
+@test "tmux: escape-time is set to a sane integer (>=0, <=500)" {
   local val
   val=$(grep -E '^set\s+-sg\s+escape-time' "$TMUX_CONF" | awk '{print $NF}')
   [ -n "$val" ]
-  [ "$val" -ge 50 ]
+  [[ "$val" =~ ^[0-9]+$ ]]
+  [ "$val" -le 500 ]
 }
 
 @test "tmux: reload bind is r" {

@@ -7,9 +7,11 @@ $git_status\
 $python\
 $nodejs\
 $rust\
+$golang\
+$java\
+$ruby\
 $docker_context\
 $cmd_duration\
-$time\
 $line_break\
 $character"""
 
@@ -58,6 +60,7 @@ style = "#f1fa8c"
 [character]
 success_symbol = "[❯](#50fa7b)"
 error_symbol = "[❯](#ff5555)"
+vimcmd_symbol = "[❮](#ff79c6)"
 
 [docker_context]
 format = '[$symbol$context]($style) '
@@ -70,8 +73,17 @@ format = '[$symbol($version)]($style) '
 symbol = " "
 style = "#ffb86c"
 
-[time]
-disabled = false
-format = '[$time]($style) '
-time_format = "%H:%M"
-style = "#6272a4"
+[golang]
+format = '[$symbol($version)]($style) '
+symbol = " "
+style = "#8be9fd"
+
+[java]
+format = '[$symbol($version)]($style) '
+symbol = " "
+style = "#ff5555"
+
+[ruby]
+format = '[$symbol($version)]($style) '
+symbol = " "
+style = "#ff79c6"

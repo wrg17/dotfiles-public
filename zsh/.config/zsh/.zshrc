@@ -13,22 +13,19 @@ path=(
   $PYENV_ROOT/shims
   $GOENV_ROOT/bin
   $GOENV_ROOT/shims
+  $RBENV_ROOT/bin
+  $RBENV_ROOT/shims
   $HOME/.jenv/bin
   $HOME/.jenv/shims
   /home/linuxbrew/.linuxbrew/bin
   /home/linuxbrew/.linuxbrew/sbin
   $HOME/.local/bin
-  $HOME/.opencode/bin
   $CARGO_HOME/bin
   $GOBIN
-  /usr/local/bin
-  /usr/bin
   $path
 )
 
 if [[ "$OSTYPE" == linux-gnu* ]]; then
-  export DOCKER_HOST=unix:///run/user/1000/docker.sock
-  export VCPKG_ROOT="$HOME/dev/vcpkg"
   export XDG_DATA_DIRS="/var/lib/snapd/desktop/applications:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 fi
 
@@ -87,7 +84,15 @@ zstyle ':completion:*' cache-path "$XDG_CACHE_HOME/zsh/compcache"
 # ----------------------------------------------------------------------------
 # KEY BINDINGS
 # ----------------------------------------------------------------------------
-bindkey -e
+bindkey -v
+export KEYTIMEOUT=1          # snap mode-switch (default 0.4s)
+
+# Preserve emacs-style shortcuts in vi insert mode — muscle memory
+bindkey -M viins '^a' beginning-of-line
+bindkey -M viins '^e' end-of-line
+bindkey -M viins '^k' kill-line
+bindkey -M viins '^w' backward-kill-word
+
 zmodload zsh/terminfo
 
 (( ${+terminfo[smkx]} )) && (( ${+terminfo[rmkx]} )) && {
@@ -123,10 +128,11 @@ bindkey '^[[3;5~' kill-word
 bindkey '^r' history-incremental-search-backward
 bindkey ' '  magic-space
 
-# Ctrl+X Ctrl+E — edit command line in $EDITOR
+# Ctrl+X Ctrl+E (or `v` in vi normal mode) — edit command line in $EDITOR
 autoload -Uz edit-command-line
 zle -N edit-command-line
 bindkey '^x^e' edit-command-line
+bindkey -M vicmd 'v' edit-command-line
 
 # ----------------------------------------------------------------------------
 # HISTORY
@@ -160,6 +166,7 @@ npx()  { _load_nvm; npx "$@"; }
 ## Language version managers
 command -v pyenv >/dev/null && eval "$(pyenv init -)"
 command -v goenv >/dev/null && eval "$(goenv init -)"
+command -v rbenv >/dev/null && eval "$(rbenv init - zsh)"
 command -v jenv  >/dev/null && eval "$(jenv init -)"
 
 ## LLVM (brew keg-only on macOS — not auto-linked, must be explicit)
@@ -172,18 +179,28 @@ command -v zoxide >/dev/null && _initcache zoxide "$(command -v zoxide)" zoxide 
 command -v direnv >/dev/null && _initcache direnv "$(command -v direnv)" direnv hook zsh
 
 upd() {
-  echo "==> apt"
-  sudo apt update && sudo apt upgrade -y || return 1
-  echo "==> brew"
-  brew update && brew upgrade || return 1
-  echo "==> rust"
-  rustup update || return 1
-  echo "==> pipx"
-  pipx upgrade-all || return 1
-  echo "==> sheldon"
-  sheldon lock --update || return 1
-  # Update git-cloned version managers (Linux only; brew handles macOS)
-  for _vm_dir in "$PYENV_ROOT" "$GOENV_ROOT" "$HOME/.jenv"; do
+  if command -v apt >/dev/null 2>&1; then
+    echo "==> apt"
+    sudo apt update && sudo apt upgrade -y || return 1
+  fi
+  if command -v brew >/dev/null 2>&1; then
+    echo "==> brew"
+    brew update && brew upgrade || return 1
+  fi
+  if command -v rustup >/dev/null 2>&1; then
+    echo "==> rust"
+    rustup update || return 1
+  fi
+  if command -v pipx >/dev/null 2>&1; then
+    echo "==> pipx"
+    pipx upgrade-all || return 1
+  fi
+  if command -v sheldon >/dev/null 2>&1; then
+    echo "==> sheldon"
+    sheldon lock --update || return 1
+  fi
+  # Update git-cloned managers (nvm always; *envs only on Linux — brew handles macOS)
+  for _vm_dir in "$NVM_DIR" "$PYENV_ROOT" "$GOENV_ROOT" "$RBENV_ROOT" "$HOME/.jenv"; do
     [[ -d "$_vm_dir/.git" ]] || continue
     echo "==> $(basename $_vm_dir)"
     git -C "$_vm_dir" pull --ff-only || return 1
@@ -250,10 +267,12 @@ alias dlog='docker logs -f'
 alias dstop-all='docker stop $(docker ps -q)'
 alias dprune='docker system prune -af --volumes'
 
-# GPU / system
-alias gpu='nvidia-smi'
-alias gpuwatch='watch -n 1 nvidia-smi'
-alias ports='ss -tulpn'
+# GPU / system (gpu/ports skip cleanly on machines without the underlying tool)
+if command -v nvidia-smi >/dev/null; then
+  alias gpu='nvidia-smi'
+  alias gpuwatch='watch -n 1 nvidia-smi'
+fi
+command -v ss >/dev/null && alias ports='ss -tulpn'
 alias myip='curl -s ifconfig.me && echo'
 
 # Dotfiles management

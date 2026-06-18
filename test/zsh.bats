@@ -59,7 +59,7 @@ _guard_test() {
 
   # Stub slow-starting tools so shell init completes within the expect timeout
   local stub
-  for stub in pyenv goenv jenv starship; do
+  for stub in pyenv goenv jenv rbenv starship; do
     printf '#!/bin/sh\n' > "$BATS_TMPDIR/$stub"
     chmod +x "$BATS_TMPDIR/$stub"
   done
@@ -138,6 +138,27 @@ RCEOF
   [[ "$output" == *"/.local/share/"* ]]
 }
 
+@test "zshenv: non-interactive shell finds nvm's default node/npm" {
+  local nvm_dir="${NVM_DIR:-$HOME/.local/share/nvm}"
+  [[ -d "$nvm_dir/versions/node" ]] || skip "no nvm versions installed"
+  [[ -f "$nvm_dir/alias/default" ]] || skip "no nvm default alias set"
+  run _zshenv 'command -v npm'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nvm/versions/node"* ]]
+}
+
+@test "zshenv: RBENV_ROOT is inside XDG_DATA_HOME" {
+  run _zshenv 'printf "%s" "$RBENV_ROOT"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"/.local/share/"* ]]
+}
+
+@test "zshenv: RUSTUP_HOME is inside XDG_DATA_HOME" {
+  run _zshenv 'printf "%s" "$RUSTUP_HOME"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"/.local/share/"* ]]
+}
+
 @test "zshenv: EDITOR is nvim" {
   run _zshenv 'printf "%s" "$EDITOR"'
   [ "$status" -eq 0 ]
@@ -165,6 +186,34 @@ RCEOF
 @test "zshenv: does not define plugins array" {
   run grep '^plugins=' "$ZSHENV"
   [ "$status" -ne 0 ]
+}
+
+# ── .zshrc: key bindings (vi mode) ─────────────────────────────────────────────
+
+@test "zshrc: vi mode is active (viins keymap loaded)" {
+  run _zsh 'bindkey -lL main'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"viins"* ]]
+}
+
+@test "zshrc: insert mode preserves ^a as beginning-of-line" {
+  run _zsh 'bindkey -M viins "^a"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"beginning-of-line"* ]]
+}
+
+@test "zshrc: insert mode preserves ^e as end-of-line" {
+  run _zsh 'bindkey -M viins "^e"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"end-of-line"* ]]
+}
+
+# ── .zshrc: PATH ───────────────────────────────────────────────────────────────
+
+@test "zshrc: PATH has no duplicate /usr/local/bin (typeset -U dedup)" {
+  run _zsh 'printf "%s" "$PATH" | tr : "\n" | grep -c "^/usr/local/bin$"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == "1" ]]
 }
 
 # ── .zshrc: history ────────────────────────────────────────────────────────────
@@ -336,13 +385,15 @@ RCEOF
 
 # ── Aliases: system ────────────────────────────────────────────────────────────
 
-@test "alias: gpu expands to nvidia-smi" {
+@test "alias: gpu expands to nvidia-smi when nvidia-smi is installed" {
+  command -v nvidia-smi >/dev/null || skip "nvidia-smi not installed"
   run _zsh 'alias gpu'
   [ "$status" -eq 0 ]
   [[ "$output" == *"nvidia-smi"* ]]
 }
 
-@test "alias: ports expands to ss -tulpn" {
+@test "alias: ports expands to ss -tulpn when ss is installed" {
+  command -v ss >/dev/null || skip "ss not installed"
   run _zsh 'alias ports'
   [ "$status" -eq 0 ]
   [[ "$output" == *"ss"* && "$output" == *"-tulpn"* ]]

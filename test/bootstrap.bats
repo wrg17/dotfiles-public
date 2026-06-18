@@ -83,6 +83,30 @@ INSTALL_TOOLS="$REPO_ROOT/bootstrap/install-tools.sh"
   [[ -d "${NVM_DIR:-$HOME/.local/share/nvm}" ]] || skip "nvm not installed in this env (install-tools.sh installs it)"
 }
 
+# ── rbenv (Brewfile on macOS, install-tools.sh on Linux) ──────────────────────
+
+@test "bootstrap: Brewfile declares rbenv" {
+  grep -qF 'brew "rbenv"' "$BREWFILE"
+}
+
+@test "bootstrap: install-tools.sh installs rbenv" {
+  grep -qF 'install_rbenv' "$INSTALL_TOOLS"
+}
+
+@test "bootstrap: rbenv is installed" {
+  command -v rbenv >/dev/null || skip "rbenv not installed in this env"
+}
+
+# ── rustup (via install-tools.sh) ─────────────────────────────────────────────
+
+@test "bootstrap: install-tools.sh installs rustup" {
+  grep -qF 'install_rustup' "$INSTALL_TOOLS"
+}
+
+@test "bootstrap: rustup is installed" {
+  command -v rustup >/dev/null || skip "rustup not installed in this env (install-tools.sh installs it)"
+}
+
 # ── sheldon ───────────────────────────────────────────────────────────────────
 
 @test "bootstrap: Brewfile declares sheldon" {
