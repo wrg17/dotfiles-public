@@ -150,7 +150,6 @@ Next steps:
 Not handled by this script — install manually if you want them:
   - JetBrains Toolbox       https://www.jetbrains.com/toolbox-app/
   - Stacher7                https://stacher.io/
-  - Rust toolchain          https://rustup.rs/  (curl ... | sh)
   - Claude CLI              https://github.com/anthropics/claude-cli
   - pipx packages           pipx install huggingface-hub  (etc.)
 
