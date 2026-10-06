@@ -125,8 +125,26 @@ stow <pkg>
 ```
 
 **`brew not found` after restart**
-macOS: verify the `eval "$(/opt/homebrew/bin/brew shellenv)"` line is in `.zshenv` (Apple Silicon) or `/usr/local/bin/brew` (Intel).
-Linux: verify `/home/linuxbrew/.linuxbrew/bin/brew shellenv` is in `.zshenv`.
+`.zshenv` does not hardcode a prefix — it probes `/opt/homebrew/bin/brew`
+(Apple Silicon), `/usr/local/bin/brew` (Intel), then
+`/home/linuxbrew/.linuxbrew/bin/brew`, and uses the first that exists. If brew
+lives somewhere else, add it to that list. If brew moved, the cached `shellenv`
+output may be stale — delete `$XDG_CACHE_HOME/brew_shellenv.zsh`.
+
+**A new terminal hangs with no prompt (Ubuntu/Debian)**
+Ubuntu's `/etc/zsh/zshrc` runs a bare `compinit`, which stops on
+`Ignore insecure directories and continue [y]/[n]?` and waits for input whenever
+anything on `fpath` is group- or world-writable — hanging the shell before
+`.zshrc` is reached. `.zshenv` sets `skip_global_compinit=1` to suppress it;
+check that line is still present. Run `compaudit` to list offending directories.
+
+**Stow created a broken symlink / an app lost its config**
+A file was removed from the repo while its symlink in `~` was still live.
+Restore a real file from git history, then gitignore it:
+```sh
+git show HEAD:<pkg>/.config/foo > ~/.config/foo
+find ~ -maxdepth 3 -xtype l          # find any others
+```
 
 **Tmux launches inside JetBrains or VS Code terminal**
 The auto-launch guard in `.zshrc` checks `TERMINAL_EMULATOR`, `VSCODE_INJECTION`, and `INTELLIJ_ENVIRONMENT_READER`. Add the new editor's env marker to the guard if needed.
