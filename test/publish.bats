@@ -15,6 +15,9 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 }
 
 @test "AGENTS.public.md exists and publish.sh ships it as AGENTS.md" {
+  # publish.sh and AGENTS.public.md are private-source files; in the published
+  # repo the guide has already been renamed to AGENTS.md and publish.sh is absent.
+  [ -f "$REPO_ROOT/publish.sh" ] || skip "private-source file; covered by the private repo"
   [ -f "$REPO_ROOT/AGENTS.public.md" ]
   run grep -q 'AGENTS.public.md.*AGENTS.md' "$REPO_ROOT/publish.sh"
   [ "$status" -eq 0 ]
@@ -71,6 +74,7 @@ _published_tracked_files() {
 }
 
 @test "publish.sh excludes shell history and compdumps from the rsync" {
+  [ -f "$REPO_ROOT/publish.sh" ] || skip "publish.sh is a private dev tool — not published"
   # Defence in depth: rsync ignores .gitignore, so these must be excluded
   # explicitly rather than relying solely on the copied ignore file.
   for pat in .zsh_history '.zcompdump\*' '\*.zwc'; do
