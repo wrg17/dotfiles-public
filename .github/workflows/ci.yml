@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest   # Linux x86_64
+          # Intel Mac (brew prefix /usr/local) — matches the hardware in use.
+          # macos-latest is Apple Silicon only; not tested here because no
+          # arm64 Mac is in use. The config still supports both prefixes.
+          - macos-15-intel
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y bats shellcheck zsh stow lua5.4 expect
+          bash <(curl -sL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv ./actionlint /usr/local/bin/
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install bats-core shellcheck stow actionlint lua expect
+
+      - name: Run tests
+        run: make test
+
+      - name: Stow dry-run
+        run: stow -d . -t "$(mktemp -d)" -nv nvim sheldon starship tmux wezterm yazi zsh

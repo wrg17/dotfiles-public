@@ -1,0 +1,30 @@
+*.local
+!zsh/.local/
+*.secret
+.env
+**/.zcompdump*
+**/*.zwc
+yazi/.config/yazi/plugins/
+tmux/.config/tmux/plugins/
+zsh/.config/zsh/.zsh_history
+
+# KDE files that rewrite themselves every session — not portable, let KDE own
+# them locally. Settings worth carrying live in bootstrap/kde-settings.sh.
+linux/.config/konsolerc
+linux/.config/dolphinrc
+linux/.config/kglobalshortcutsrc
+linux/.config/kwinrc          # monitor UUIDs + geo-coords, grows every session
+linux/.config/khotkeysrc      # 1047 lines, 143 are "[$d]" default markers
+linux/.config/kwinrulesrc     # only a [$Version] migration stamp, no settings
+linux/.config/kxkbrc          # only a [$Version] migration stamp, no settings
+linux/.config/spectaclerc     # [$Version] + a stale lastSaveLocation path
+
+.idea
+.claude/
+.cache/
+
+# nvim build artifacts (from install-tools.sh download)
+nvim-macos-x86_64.tar.gz
+nvim-macos-x86_64/
+nvim-linux64.tar.gz
+nvim-linux64/

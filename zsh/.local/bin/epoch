@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Epoch/date converter
+#   epoch            → current epoch seconds
+#   epoch <integer>  → epoch to human-readable date (ms automatically truncated)
+#   epoch <string>   → date string to epoch
+set -euo pipefail
+
+epoch_to_human() {
+  if [[ "$OSTYPE" == darwin* ]]; then
+    date -r "$1"
+  else
+    date -d "@$1"
+  fi
+}
+
+human_to_epoch() {
+  if command -v gdate >/dev/null 2>&1; then
+    gdate -d "$1" +%s
+  elif [[ "$OSTYPE" == darwin* ]]; then
+    date -j -f '%Y-%m-%dT%H:%M:%S' "$1" +%s 2>/dev/null ||
+    date -j -f '%Y-%m-%d %H:%M:%S' "$1" +%s 2>/dev/null ||
+    date -j -f '%Y-%m-%d' "$1" +%s 2>/dev/null ||
+    { printf 'Cannot parse: %s\nSupported: YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, YYYY-MM-DDTHH:MM:SS\n' "$1" >&2; exit 1; }
+  else
+    date -d "$1" +%s
+  fi
+}
+
+if [[ $# -eq 0 ]]; then
+  date +%s
+elif [[ "$1" =~ ^[0-9]+$ ]]; then
+  ts="$1"
+  if [[ ${#ts} -gt 10 ]]; then
+    ts="${ts:0:10}"
+    printf '(milliseconds truncated to seconds)\n'
+  fi
+  epoch_to_human "$ts"
+else
+  human_to_epoch "$1"
+fi

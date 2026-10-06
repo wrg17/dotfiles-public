@@ -1,0 +1,121 @@
+# Dracula palette — https://draculatheme.com/
+# bg #282a36 | current-line #44475a | fg #f8f8f2 | comment #6272a4
+# cyan #8be9fd | green #50fa7b | orange #ffb86c | pink #ff79c6
+# purple #bd93f9 | red #ff5555 | yellow #f1fa8c
+
+[mgr]
+cwd = { fg = "#8be9fd" }
+
+hovered         = { fg = "#282a36", bg = "#bd93f9" }
+preview_hovered = { underline = true }
+
+find_keyword  = { fg = "#f1fa8c", italic = true }
+find_position = { fg = "#ff79c6", bg = "reset", italic = true }
+
+marker_copied   = { fg = "#50fa7b", bg = "#50fa7b" }
+marker_cut      = { fg = "#ff5555", bg = "#ff5555" }
+marker_marked   = { fg = "#bd93f9", bg = "#bd93f9" }
+marker_selected = { fg = "#f1fa8c", bg = "#f1fa8c" }
+
+tab_active   = { fg = "#282a36", bg = "#bd93f9" }
+tab_inactive = { fg = "#f8f8f2", bg = "#44475a" }
+tab_width    = 1
+
+count_copied   = { fg = "#282a36", bg = "#50fa7b" }
+count_cut      = { fg = "#282a36", bg = "#ff5555" }
+count_selected = { fg = "#282a36", bg = "#f1fa8c" }
+
+border_symbol = "│"
+border_style  = { fg = "#6272a4" }
+
+syntect_theme = ""
+
+[mode]
+normal_main = { fg = "#282a36", bg = "#bd93f9", bold = true }
+normal_alt  = { fg = "#bd93f9", bg = "#44475a" }
+select_main = { fg = "#282a36", bg = "#50fa7b", bold = true }
+select_alt  = { fg = "#50fa7b", bg = "#44475a" }
+unset_main  = { fg = "#282a36", bg = "#ffb86c", bold = true }
+unset_alt   = { fg = "#ffb86c", bg = "#44475a" }
+
+[status]
+separator_open  = ""
+separator_close = ""
+separator_style = { fg = "#44475a", bg = "#44475a" }
+
+progress_label  = { fg = "#f8f8f2", bold = true }
+progress_normal = { fg = "#bd93f9", bg = "#44475a" }
+progress_error  = { fg = "#ff5555", bg = "#44475a" }
+
+permissions_t = { fg = "#8be9fd" }
+permissions_r = { fg = "#f1fa8c" }
+permissions_w = { fg = "#ff5555" }
+permissions_x = { fg = "#50fa7b" }
+permissions_s = { fg = "#6272a4" }
+
+[pick]
+border   = { fg = "#bd93f9" }
+active   = { fg = "#ff79c6" }
+inactive = {}
+
+[input]
+border   = { fg = "#bd93f9" }
+title    = {}
+value    = {}
+selected = { reversed = true }
+
+[confirm]
+border  = { fg = "#bd93f9" }
+title   = { fg = "#bd93f9" }
+content = {}
+list    = {}
+btn_yes = { reversed = true }
+btn_no  = {}
+
+[completion]
+border   = { fg = "#bd93f9" }
+active   = { bg = "#44475a" }
+inactive = {}
+
+[tasks]
+border  = { fg = "#bd93f9" }
+title   = {}
+hovered = { underline = true }
+
+[which]
+mask            = { bg = "#282a36" }
+cand            = { fg = "#8be9fd" }
+rest            = { fg = "#6272a4" }
+desc            = { fg = "#ff79c6" }
+separator       = "  "
+separator_style = { fg = "#44475a" }
+
+[help]
+on      = { fg = "#ff79c6" }
+exec    = { fg = "#8be9fd" }
+desc    = { fg = "#6272a4" }
+hovered = { bg = "#44475a", bold = true }
+footer  = { fg = "#282a36", bg = "#f8f8f2" }
+
+[notify]
+title_info  = { fg = "#8be9fd" }
+title_warn  = { fg = "#f1fa8c" }
+title_error = { fg = "#ff5555" }
+icon_info   = "󰋽"
+icon_warn   = "󰀪"
+icon_error  = "󰜺"
+
+[filetype]
+rules = [
+  # Images
+  { mime = "image/*", fg = "#ffb86c" },
+  # Media
+  { mime = "{audio,video}/*", fg = "#f1fa8c" },
+  # Archives
+  { mime = "application/{zip,gzip,x-tar,x-bzip,x-bzip2,x-7z-compressed,x-rar,xz}", fg = "#ff79c6" },
+  # Documents
+  { mime = "application/{pdf,doc,docx,xls,xlsx,ppt,pptx}", fg = "#bd93f9" },
+  # Fallback
+  { url = "*",  fg = "#f8f8f2" },
+  { url = "*/", fg = "#8be9fd" },
+]

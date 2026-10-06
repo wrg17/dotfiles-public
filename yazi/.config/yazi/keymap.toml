@@ -1,0 +1,20 @@
+[mgr]
+prepend_keymap = [
+  # Toggle hidden files
+  { on = ".", run = "hidden toggle", desc = "Toggle hidden files" },
+
+  # Open terminal in current dir
+  { on = "<C-t>", run = "shell 'wezterm start --cwd \"$PWD\"' --block false", desc = "Open terminal here" },
+
+  # Open in Pycharm
+  { on = "P", run = 'shell "pycharm \"$@\"" --orphan', desc = "Open in PyCharm" },
+
+  # Copy path to clipboard
+  { on = ["y", "p"], run = "shell 'echo -n \"$@\" | clip' --confirm", desc = "Copy path" },
+
+  # Bulk rename with nvim
+  { on = "R", run = "bulk-rename", desc = "Bulk rename" },
+
+  # Create directory
+  { on = "A", run = "create --dir", desc = "Create directory" },
+]
