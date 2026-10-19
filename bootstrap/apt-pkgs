@@ -30,6 +30,13 @@ tmux
 wezterm
 watch
 
+# NFS client — mount.nfs and friends, needed for /etc/fstab NFS mounts
+nfs-common
+
+# Backups — borg-backup runs from a systemd user timer, before any shell
+# environment is loaded, so this belongs on apt rather than Homebrew
+borgbackup
+
 # Modern replacements for ls/cat/find — wired up as aliases in .zshrc
 # fd is named fd-find on Ubuntu; the zshrc alias handles the rename
 eza

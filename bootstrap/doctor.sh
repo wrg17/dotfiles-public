@@ -259,6 +259,84 @@ else
   fi
 fi
 
+# ── Backups (Linux) ────────────────────────────────────────────────────────────
+#
+# A backup that has quietly stopped looks exactly like one that is working, so
+# these checks exist to make the difference visible. They read config rather
+# than assuming paths, so changing backup/.config/borg/env is enough.
+
+if [[ "$(uname -s)" == Linux ]]; then
+  _section "Backups"
+
+  borg_env="${XDG_CONFIG_HOME:-$HOME/.config}/borg/env"
+  if [[ ! -r "$borg_env" ]]; then
+    _info "no borg config at $borg_env — backup package not stowed"
+  elif ! command -v borg >/dev/null 2>&1; then
+    _warn "borg not installed — sudo apt-get install borgbackup"
+  else
+    # shellcheck source=/dev/null
+    . "$borg_env"
+
+    # The NFS mount is the single point of failure: unmounted, /mnt/nas is an
+    # ordinary empty directory and every run refuses to start.
+    if mountpoint -q "$BORG_MOUNT" 2>/dev/null; then
+      _ok "$BORG_MOUNT mounted"
+      if [[ -f "$BORG_REPO/config" ]]; then
+        _ok "borg repo present at $BORG_REPO"
+      else
+        _warn "no borg repo at $BORG_REPO — run: borg-init"
+      fi
+    else
+      _warn "$BORG_MOUNT not mounted — backups cannot run"
+    fi
+
+    if [[ -f "$BORG_PASSPHRASE_FILE" ]]; then
+      pperms="$(stat -c '%a' "$BORG_PASSPHRASE_FILE" 2>/dev/null || echo '?')"
+      if [[ "$pperms" == "600" ]]; then
+        _ok "borg passphrase present, mode 600"
+      else
+        _warn "borg passphrase is mode $pperms, expected 600 — chmod 600 $BORG_PASSPHRASE_FILE"
+      fi
+    else
+      _warn "no borg passphrase at $BORG_PASSPHRASE_FILE — run: borg-init"
+    fi
+
+    # Timer state. `systemctl is-enabled` alone is not enough: a timer can be
+    # enabled while its last run failed, which is the case worth warning about.
+    if systemctl --user show-environment >/dev/null 2>&1; then
+      if systemctl --user is-enabled borg-backup.timer >/dev/null 2>&1; then
+        _ok "borg-backup.timer enabled"
+        last_result="$(systemctl --user show -p Result --value borg-backup.service 2>/dev/null)"
+        if [[ -n "$last_result" && "$last_result" != "success" ]]; then
+          _warn "last backup did not succeed (Result=$last_result) — journalctl --user -u borg-backup -n 50"
+        fi
+
+        # Staleness beats unit state as a signal: a timer that is enabled but
+        # whose service has not run in days means the machine is asleep at 02:00
+        # more often than Persistent=true can compensate for.
+        last_run="$(systemctl --user show -p ExecMainExitTimestamp --value borg-backup.service 2>/dev/null)"
+        if [[ -z "$last_run" ]]; then
+          _info "borg-backup has not run yet — start one now: systemctl --user start borg-backup"
+        else
+          last_epoch="$(date -d "$last_run" +%s 2>/dev/null || echo 0)"
+          if [[ "$last_epoch" -gt 0 ]]; then
+            age_days=$(( ( $(date +%s) - last_epoch ) / 86400 ))
+            if [[ "$age_days" -gt 3 ]]; then
+              _warn "last backup was ${age_days} days ago — systemctl --user list-timers borg-backup.timer"
+            else
+              _ok "last backup ${age_days} day(s) ago"
+            fi
+          fi
+        fi
+      else
+        _warn "borg-backup.timer not enabled — run: bootstrap/install-units.sh"
+      fi
+    else
+      _info "no systemd user instance — cannot check timer state"
+    fi
+  fi
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 printf '\n── Summary ──────────────────────────────────────────────────────────────────\n'

@@ -162,6 +162,11 @@ if command -v syncthing &>/dev/null; then
   systemctl --user enable --now syncthing.service 2>/dev/null || true
 fi
 
+# Note: the systemd user timers this repo ships are NOT registered here.
+# bootstrap/install-units.sh has to run after `stow`, because the units point at
+# scripts under ~/.local/bin that do not exist until the packages are linked.
+# The Makefile's install-linux target calls it in the right order.
+
 # -----------------------------------------------------------------------------
 # Done
 # -----------------------------------------------------------------------------
