@@ -1,7 +1,20 @@
+# `*.local` is for machine-local overrides (.zshrc.local, private-patterns.local),
+# but it also matches the XDG `.local` directory inside every stow package, so
+# each package that ships one has to be re-included by hand. Forgetting this is
+# silent: `git add` skips the files without a word and the worktree still works,
+# so the package only breaks on a fresh clone. test/backup.bats guards it.
 *.local
 !zsh/.local/
+!backup/.local/
 *.secret
 .env
+
+# Borg passphrase. It is configured to live under ~/.local/state (see
+# backup/.config/borg/env for why), so it should never appear here at all —
+# this is the backstop for a misconfigured BORG_PASSPHRASE_FILE, since
+# ~/.config/borg is a stow symlink straight into this repo.
+backup/.config/borg/passphrase
+**/borg/passphrase
 **/.zcompdump*
 **/*.zwc
 yazi/.config/yazi/plugins/
@@ -10,14 +23,34 @@ zsh/.config/zsh/.zsh_history
 
 # KDE files that rewrite themselves every session — not portable, let KDE own
 # them locally. Settings worth carrying live in bootstrap/kde-settings.sh.
+#
+# Comments MUST be on their own line. `#` only starts a comment at the start of
+# a line, so `path  # why` is one literal pattern containing spaces and a hash,
+# which matches nothing. Five entries here were written that way and silently
+# protected nothing; it went unnoticed because each file also lives outside the
+# repo, so there was never an untracked copy for the broken pattern to miss.
+# test/stow.bats asserts every pattern in this block actually matches.
 linux/.config/konsolerc
 linux/.config/dolphinrc
 linux/.config/kglobalshortcutsrc
-linux/.config/kwinrc          # monitor UUIDs + geo-coords, grows every session
-linux/.config/khotkeysrc      # 1047 lines, 143 are "[$d]" default markers
-linux/.config/kwinrulesrc     # only a [$Version] migration stamp, no settings
-linux/.config/kxkbrc          # only a [$Version] migration stamp, no settings
-linux/.config/spectaclerc     # [$Version] + a stale lastSaveLocation path
+
+# [DirSelect Dialog] geometry + 20 lines of [KFileDialog Settings] sort order
+linux/.config/kdeglobals
+
+# monitor UUIDs + geo-coords, gained a section every session
+linux/.config/kwinrc
+
+# 1047 lines, 143 of them "[$d]" default markers
+linux/.config/khotkeysrc
+
+# only a [$Version] migration stamp, no settings
+linux/.config/kwinrulesrc
+
+# only a [$Version] migration stamp, no settings
+linux/.config/kxkbrc
+
+# [$Version] + a stale lastSaveLocation path
+linux/.config/spectaclerc
 
 .idea
 .claude/

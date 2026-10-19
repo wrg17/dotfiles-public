@@ -7,7 +7,7 @@ install-hooks:
 
 install-mac:
 	./bootstrap/macos.sh
-	stow $$(ls -d */ | grep -Ev '^(bootstrap|test|linux)/' | tr -d '/')
+	stow $$(ls -d */ | grep -Ev '^(bootstrap|test|linux|backup)/' | tr -d '/')
 	./bootstrap/link-jetbrains.sh
 	launchctl load ~/Library/LaunchAgents/com.dotfiles.doctor.plist 2>/dev/null || true
 
@@ -15,9 +15,11 @@ install-linux:
 	./bootstrap/linux.sh
 	stow $$(ls -d */ | grep -Ev '^(bootstrap|test|macos)/' | tr -d '/')
 	./bootstrap/link-jetbrains.sh
+	./bootstrap/install-units.sh
 
 update:
 	git pull && stow -R $$(ls -d */ | grep -Ev '^(bootstrap|test)/' | tr -d '/')
+	./bootstrap/install-units.sh
 
 upgrade:
 	git pull
@@ -29,6 +31,7 @@ upgrade:
 	bootstrap/install-tools.sh
 	bootstrap/install-langs.sh
 	stow -R $$(ls -d */ | grep -Ev '^(bootstrap|test)/' | tr -d '/')
+	bootstrap/install-units.sh
 
 publish:
 	@bash publish.sh

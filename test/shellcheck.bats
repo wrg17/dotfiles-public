@@ -34,6 +34,29 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   [ "$status" -eq 0 ]
 }
 
+@test "bootstrap/install-units.sh passes shellcheck" {
+  run shellcheck "$REPO_ROOT/bootstrap/install-units.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "backup/.local/bin/borg-backup passes shellcheck" {
+  [ -f "$REPO_ROOT/backup/.local/bin/borg-backup" ] || skip "backup/ is a private-source package"
+  run shellcheck "$REPO_ROOT/backup/.local/bin/borg-backup"
+  [ "$status" -eq 0 ]
+}
+
+@test "backup/.local/bin/borg-init passes shellcheck" {
+  [ -f "$REPO_ROOT/backup/.local/bin/borg-init" ] || skip "backup/ is a private-source package"
+  run shellcheck "$REPO_ROOT/backup/.local/bin/borg-init"
+  [ "$status" -eq 0 ]
+}
+
+@test "backup/.config/borg/env passes shellcheck" {
+  [ -f "$REPO_ROOT/backup/.config/borg/env" ] || skip "backup/ is a private-source package"
+  run shellcheck "$REPO_ROOT/backup/.config/borg/env"
+  [ "$status" -eq 0 ]
+}
+
 @test "zsh/.local/bin/speedtest passes shellcheck" {
   run shellcheck "$REPO_ROOT/zsh/.local/bin/speedtest"
   [ "$status" -eq 0 ]
