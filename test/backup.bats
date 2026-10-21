@@ -22,6 +22,20 @@ setup() {
   [ -x "$BORG_INIT" ]
 }
 
+@test "backup: borg writes no runtime state into the repo" {
+  # ~/.config/borg is a stow symlink into this worktree, so a borg run without
+  # BORG_BASE_DIR drops per-repo security records here. They are gitignored as
+  # a backstop, but their presence means some code path is still missing the
+  # variable — usually a new test or a hand-run command.
+  for d in security cache keys; do
+    [ ! -d "$BACKUP_DIR/.config/borg/$d" ] || {
+      echo "borg runtime state leaked into the repo: backup/.config/borg/$d"
+      echo "some borg invocation is missing BORG_BASE_DIR"
+      return 1
+    }
+  done
+}
+
 @test "backup: every file in the package is tracked by git" {
   # The .gitignore `*.local` pattern matches the XDG .local directory inside a
   # stow package, so borg-backup and borg-init were ignored on first commit:
@@ -244,9 +258,301 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+# ── Service dumps ─────────────────────────────────────────────────────────────
+
+@test "backup: dump script exists and is executable" {
+  [ -x "$BACKUP_DIR/.local/bin/borg-dump-services" ]
+  [ -f "$BACKUP_DIR/.config/borg/sqlite-dbs" ]
+}
+
+@test "backup: borg-backup runs the dumps itself, not via ExecStartPre" {
+  # If dumping were an ExecStartPre on the unit, a hand-run borg-backup would
+  # silently produce a different archive from the timer's — a difference you
+  # would only discover during a restore.
+  grep -q 'borg-dump-services' "$BORG_BACKUP"
+  run grep -q 'ExecStartPre' "$UNIT_DIR/borg-backup.service"
+  [ "$status" -ne 0 ]
+}
+
+@test "backup: dumps land somewhere the archive actually covers" {
+  # A dump written to an excluded path is worse than no dump: it looks like
+  # protection and is never archived.
+  grep -q 'BORG_DUMP_DIR=.*XDG_STATE_HOME' "$BORG_ENV"
+  run grep -qxF '.local/state' "$BORG_EXCLUDE"
+  [ "$status" -ne 0 ]
+}
+
+@test "backup: Postgres is dumped logically, never copied from its volume" {
+  d="$BACKUP_DIR/.local/bin/borg-dump-services"
+  # pg_dumpall, not pg_dump: without it a restore has no roles or grants.
+  grep -q 'pg_dumpall' "$d"
+  # The superuser is read from the container; lexic-db has no `postgres` role,
+  # so a hardcoded -U postgres fails.
+  grep -q 'printenv POSTGRES_USER' "$d"
+}
+
+@test "backup: dumps are written atomically" {
+  # Overwriting a good dump with a truncated one is how a backup silently
+  # stops being restorable.
+  d="$BACKUP_DIR/.local/bin/borg-dump-services"
+  grep -q 'mv -f "\$tmp" "\$out"' "$d"
+  grep -q 'previous dump left intact' "$d"
+}
+
+@test "backup: a missing sqlite3 is reported, not silently skipped" {
+  # Without sqlite3 the WAL-mode databases are archived as raw files that may
+  # restore corrupt, so it has to reach the exit status.
+  d="$BACKUP_DIR/.local/bin/borg-dump-services"
+  run awk '/sqlite3 not installed/{found=1} found && /failures=\$\(\(failures \+ 1\)\)/{print "yes"; exit}' "$d"
+  [ "$output" = "yes" ]
+}
+
+@test "backup: apt-pkgs declares sqlite3" {
+  grep -qxF 'sqlite3' "$REPO_ROOT/bootstrap/apt-pkgs"
+}
+
+# ── Exclude semantics, exercised rather than eyeballed ────────────────────────
+
+@test "backup: exclude patterns include and skip exactly what is intended" {
+  command -v borg >/dev/null || skip "borg not installed in this env"
+
+  # borg's pattern styles are subtle: an unprefixed pattern anchors at the
+  # archive root, `sh:**/` matches any depth. Reading them wrong is invisible
+  # until a restore comes up short — which is how the live Firefox profile was
+  # excluded while a stale ~/.mozilla copy was being backed up. So build a tiny
+  # tree with the real shapes and assert on borg's own decisions.
+  # The service-state paths live under a directory whose name
+  # test/private-patterns.local marks private, and this file is published, so
+  # read the prefix out of the exclude file rather than spelling it here.
+  venv_pat=$(grep -E 'comfyui/venv$' "$BORG_EXCLUDE" | head -1)
+  [ -n "$venv_pat" ] || skip "no comfyui/venv exclude to derive the prefix from"
+  svc="${venv_pat%/comfyui/venv}"     # -> <private>/state/services
+
+  work=$(mktemp -d)
+  h="$work/home"
+  mkdir -p \
+    "$h/snap/firefox/common/.mozilla/firefox/prof.default/cache2" \
+    "$h/snap/firefox/common/.cache" "$h/snap/firefox/6836" "$h/snap/firefox/current" \
+    "$h/snap/postman/360" "$h/snap/postman/360/.cache" \
+    "$h/$svc/comfyui/models" "$h/$svc/comfyui/venv" "$h/$svc/comfyui/user" \
+    "$h/$svc/openwebui/data" \
+    "$h/.minecraft/saves" "$h/.local/state/borg-dumps" \
+    "$h/.local/share/docker" "$h/.cache" "$h/projects/app/node_modules"
+  for f in \
+    snap/firefox/common/.mozilla/firefox/prof.default/places.sqlite \
+    snap/firefox/common/.mozilla/firefox/prof.default/cache2/junk \
+    snap/firefox/common/.cache/junk snap/firefox/6836/prefs.js \
+    snap/postman/360/collections.json snap/postman/360/.cache/junk \
+    "$svc/comfyui/models/ckpt" "$svc/comfyui/venv/lib" \
+    "$svc/comfyui/user/workflow.json" "$svc/openwebui/data/webui.db" \
+    .minecraft/saves/world.dat .local/state/borg-dumps/pg.sql.gz \
+    .local/share/docker/layer .cache/junk \
+    projects/app/node_modules/dep.js projects/app/main.rs
+  do echo x > "$h/$f"; done
+
+  # BORG_BASE_DIR is not optional here. ~/.config/borg is a stow symlink into
+  # this repo, so without it borg writes a per-repo security record for each
+  # throwaway repo straight into the worktree — this test did exactly that, and
+  # a pile of records for /tmp repos ended up committed.
+  export BORG_BASE_DIR="$work/borg-base"
+  mkdir -p "$BORG_BASE_DIR"
+
+  borg init --encryption=none "$work/repo" >/dev/null 2>&1
+  listing=$(cd "$h" && borg create --dry-run --list \
+    --exclude-from "$BORG_EXCLUDE" "$work/repo::t" . 2>&1 |
+    sed 's|^\(.\) \./|\1 |')
+  rm -rf "$work"
+
+  _included() { echo "$listing" | grep -qE "^- $1\$" || { echo "NOT included: $1"; return 1; }; }
+  _excluded() { echo "$listing" | grep -qE "^x $1\$" || { echo "NOT excluded: $1"; return 1; }; }
+
+  # The live snap Firefox profile — the gap this test exists for. Firefox keeps
+  # it in common/.
+  _included 'snap/firefox/common/.mozilla/firefox/prof.default/places.sqlite'
+
+  # ...but which half of a snap holds the real data is up to the app. Postman
+  # keeps its collections in the numbered revision directory, so those must be
+  # archived too. An earlier exclude of `snap/*/[0-9]*` dropped them silently,
+  # and would have left `current` pointing at nothing.
+  _included 'snap/postman/360/collections.json'
+  _included 'snap/firefox/6836/prefs.js'
+
+  # Caches inside a snap are still skipped, at either level.
+  _excluded 'snap/firefox/common/.mozilla/firefox/prof.default/cache2'
+  _excluded 'snap/firefox/common/.cache'
+  _excluded 'snap/postman/360/.cache'
+
+  # Model weights and authored workflows kept; rebuildable venv dropped.
+  _included "$svc/comfyui/models/ckpt"
+  _included "$svc/comfyui/user/workflow.json"
+  _included "$svc/openwebui/data/webui.db"
+  _excluded "$svc/comfyui/venv"
+
+  # The dumps must be archived, or dumping them is pointless.
+  _included '.local/state/borg-dumps/pg.sql.gz'
+
+  _included '.minecraft/saves/world.dat'
+  _included 'projects/app/main.rs'
+  _excluded '.cache'
+  _excluded '.local/share/docker'
+  _excluded 'projects/app/node_modules'
+}
+
+@test "backup: service state and snap are not excluded wholesale" {
+  # Both were, and both hid irreplaceable data behind a size-based judgement:
+  # chat history, authored workflows, and the live snap Firefox profile.
+  # The service-state prefix is derived, not named — see the test above.
+  venv_pat=$(grep -E 'comfyui/venv$' "$BORG_EXCLUDE" | head -1)
+  [ -n "$venv_pat" ] || skip "no comfyui/venv exclude to derive the prefix from"
+  state_root="${venv_pat%/services/comfyui/venv}"
+
+  run grep -qxF "$state_root" "$BORG_EXCLUDE"
+  [ "$status" -ne 0 ]
+  run grep -qxF 'snap' "$BORG_EXCLUDE"
+  [ "$status" -ne 0 ]
+}
+
+# ── Root-level system snapshot ────────────────────────────────────────────────
+
+@test "backup: system snapshot script and units exist" {
+  [ -x "$REPO_ROOT/bootstrap/system/etc-snapshot" ]
+  [ -f "$REPO_ROOT/bootstrap/system/etc-snapshot.service" ]
+  [ -f "$REPO_ROOT/bootstrap/system/etc-snapshot.timer" ]
+  [ -x "$REPO_ROOT/bootstrap/install-system-units.sh" ]
+}
+
+@test "backup: etc-snapshot refuses to run unprivileged" {
+  run "$REPO_ROOT/bootstrap/system/etc-snapshot"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must run as root"* ]]
+}
+
+@test "backup: etc-snapshot does not put password hashes in a user-readable file" {
+  # The tarball has to be readable by the backup user, so shadow stays out —
+  # a restored machine just needs its password reset.
+  snap="$REPO_ROOT/bootstrap/system/etc-snapshot"
+  grep -q -- "--exclude='/etc/shadow\*'" "$snap"
+  grep -q -- "--exclude='/etc/gshadow\*'" "$snap"
+}
+
+@test "backup: etc-snapshot tars uncompressed so borg can dedup it" {
+  snap="$REPO_ROOT/bootstrap/system/etc-snapshot"
+  grep -qE '^\s+-cf "\$tmp"' "$snap"
+  run grep -qE 'tar .*-c?zf' "$snap"
+  [ "$status" -ne 0 ]
+}
+
+@test "backup: etc-snapshot captures what a rebuild actually needs" {
+  snap="$REPO_ROOT/bootstrap/system/etc-snapshot"
+  grep -q 'dpkg --get-selections' "$snap"
+  grep -q 'apt-mark showmanual' "$snap"
+  grep -q 'lsblk' "$snap"
+}
+
+@test "backup: system timer runs before the user backup timer" {
+  # Otherwise the tarball the user job archives is always a day stale.
+  sys=$(grep -oE 'OnCalendar=\*-\*-\* [0-9]{2}:[0-9]{2}' \
+        "$REPO_ROOT/bootstrap/system/etc-snapshot.timer" | grep -oE '[0-9]{2}:[0-9]{2}')
+  usr=$(grep -oE 'OnCalendar=\*-\*-\* [0-9]{2}:[0-9]{2}' \
+        "$UNIT_DIR/borg-backup.timer" | grep -oE '[0-9]{2}:[0-9]{2}')
+  [ -n "$sys" ] && [ -n "$usr" ]
+  [[ "$sys" < "$usr" ]]
+}
+
+@test "backup: system timer is persistent too" {
+  grep -q '^Persistent=true' "$REPO_ROOT/bootstrap/system/etc-snapshot.timer"
+}
+
+@test "backup: tracked system files name no specific user" {
+  # The username is written to /etc/default at install time precisely so the
+  # tracked units stay portable.
+  run grep -rnE '(BACKUP_USER=[a-z]|/home/[a-z])' \
+    "$REPO_ROOT/bootstrap/system/"
+  [ -z "$output" ] || { echo "$output"; return 1; }
+}
+
+@test "backup: linux.sh installs the system units" {
+  grep -q 'install-system-units.sh' "$REPO_ROOT/bootstrap/linux.sh"
+}
+
+# ── doctor ────────────────────────────────────────────────────────────────────
+
+@test "backup: doctor measures staleness from the repo, not from systemd" {
+  # systemd only knows about runs it started, so a hand-run backup left
+  # ExecMainExitTimestamp empty and doctor reported "has not run yet" with a
+  # fresh archive on the NAS — and it could not distinguish that from a timer
+  # that has silently stopped firing. The newest archive is ground truth.
+  doc="$REPO_ROOT/bootstrap/doctor.sh"
+  # Strip comments first: the script names ExecMainExitTimestamp in prose
+  # explaining why it is the wrong signal.
+  run grep -vE '^\s*#' "$doc"
+  echo "$output" | grep -q 'ExecMainExitTimestamp' && return 1
+  grep -q "borg list --lock-wait 0 --last 1" "$doc"
+}
+
+@test "backup: doctor cannot block on a hung mount or a held lock" {
+  # It is an advisory check; a stuck NFS mount must not hang it.
+  doc="$REPO_ROOT/bootstrap/doctor.sh"
+  grep -q 'timeout 20 borg list' "$doc"
+  grep -q -- '--lock-wait 0' "$doc"
+}
+
 # ── apt ───────────────────────────────────────────────────────────────────────
 
 @test "backup: apt-pkgs declares borgbackup" {
   run grep -qxF 'borgbackup' "$REPO_ROOT/bootstrap/apt-pkgs"
   [ "$status" -eq 0 ]
+}
+
+@test "backup: dumps are verified complete, not merely non-empty" {
+  # A dump cut short by a full disk or a container killed mid-write leaves a
+  # plausible-looking file that `[ -s ]` waves through. Each kind gets a real
+  # integrity check before it replaces the previous good copy.
+  d="$BACKUP_DIR/.local/bin/borg-dump-services"
+  grep -q 'PostgreSQL database cluster dump complete' "$d"   # pg_dumpall marker
+  grep -q 'tar tf "\$tmp"' "$d"                              # tar index reads back
+  grep -q "pragma integrity_check" "$d"                      # sqlite opens
+}
+
+@test "backup: every listed sqlite database actually exists" {
+  # A wrong path is not an error at runtime — the script logs "not present,
+  # skipping" and moves on — so a typo means a database silently goes
+  # unprotected. One of the original five was guessed wrong this way.
+  #
+  # Fails only when SOME listed databases exist and others do not. On a fresh
+  # machine none of these services are deployed yet, so absence across the
+  # board is expected and skips; a partial match means the services are here
+  # and a path is wrong.
+  [ -r "$BACKUP_DIR/.config/borg/sqlite-dbs" ] || skip "no sqlite list"
+  present=0 missing=""
+  while IFS= read -r rel; do
+    case "$rel" in ''|'#'*) continue ;; esac
+    if [ -f "$HOME/$rel" ]; then
+      present=$((present + 1))
+    else
+      missing="$missing $rel"
+    fi
+  done < "$BACKUP_DIR/.config/borg/sqlite-dbs"
+
+  [ "$present" -gt 0 ] || skip "none of the listed services are deployed here"
+  [ -z "$missing" ] || {
+    echo "$present listed databases exist, but these paths are wrong:$missing"
+    return 1
+  }
+}
+
+@test "backup: mount guard distinguishes real NFS from an autofs placeholder" {
+  # With x-systemd.automount the mountpoint check passes before any NFS traffic
+  # has happened, so on its own it would wave through an unreachable NAS. The
+  # directory read forces the automount to trigger and findmnt confirms NFS
+  # actually landed — otherwise the failure surfaces one check later as
+  # "no borg repo", sending you after a missing repo instead of the network.
+  grep -q 'findmnt -t nfs,nfs4' "$BORG_BACKUP"
+  grep -q 'automount failed to trigger' "$BORG_BACKUP"
+  # The order matters: trigger before asserting the filesystem type.
+  trigger=$(grep -n 'ls "\$BORG_MOUNT"' "$BORG_BACKUP" | cut -d: -f1)
+  confirm=$(grep -n 'findmnt -t nfs,nfs4' "$BORG_BACKUP" | cut -d: -f1)
+  repo=$(grep -n 'BORG_REPO/config' "$BORG_BACKUP" | head -1 | cut -d: -f1)
+  [ "$trigger" -lt "$confirm" ]
+  [ "$confirm" -lt "$repo" ]
 }

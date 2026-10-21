@@ -17,10 +17,13 @@ brew "sheldon"
 brew "watch"
 brew "gh"
 
-# Modern replacements for ls/cat/find — wired up as aliases in .zshrc
-brew "eza"
-brew "bat"
-brew "fd"
+# Modern replacements for ls/cat/find (eza, bat, fd) — installed by
+# bootstrap/install-tools.sh, not from here. All three are Rust, so on a mac
+# below Homebrew's bottle floor `brew install` builds rust and llvm first.
+
+# Shell integrations (zoxide, direnv) — installed from upstream binaries by
+# bootstrap/install-tools.sh, not from here: Homebrew has no bottles for macOS
+# below its support floor, where `brew install zoxide` would build llvm.
 
 # Shell, editor, file manager — installed via bootstrap/install-tools.sh
 

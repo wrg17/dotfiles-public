@@ -1,0 +1,18 @@
+[Unit]
+Description=Snapshot /etc and package lists for the user backup
+Documentation=file:/usr/local/sbin/etc-snapshot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/etc-snapshot
+
+# /etc is 21M and the package lists are trivial, so this finishes in seconds —
+# but a oneshot inherits DefaultTimeoutStartSec (90s on Ubuntu) and a slow disk
+# should not turn into a spurious failure.
+TimeoutStartSec=10min
+
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

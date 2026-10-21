@@ -81,7 +81,14 @@ if [[ "$(uname -s)" == Darwin ]]; then
     if [[ -n "$outdated" ]]; then
       while IFS= read -r pkg; do _info "  outdated: $pkg"; done <<< "$outdated"
       count="$(printf '%s\n' "$outdated" | wc -l | tr -d ' ')"
-      _warn "${count} outdated package(s) — run: brew upgrade"
+      if "$(dirname "${BASH_SOURCE[0]}")/brew-bottles.sh"; then
+        _warn "${count} outdated package(s) — run: brew upgrade"
+      else
+        _warn "${count} outdated package(s) — macOS $(sw_vers -productVersion) is below"
+        _info "        Homebrew's bottle floor, so 'brew upgrade' would build all of"
+        _info "        them from source. Upgrade macOS, or upgrade formulae one at a"
+        _info "        time knowingly."
+      fi
     else
       _ok "all brew packages up to date"
     fi
@@ -310,29 +317,43 @@ if [[ "$(uname -s)" == Linux ]]; then
         if [[ -n "$last_result" && "$last_result" != "success" ]]; then
           _warn "last backup did not succeed (Result=$last_result) — journalctl --user -u borg-backup -n 50"
         fi
-
-        # Staleness beats unit state as a signal: a timer that is enabled but
-        # whose service has not run in days means the machine is asleep at 02:00
-        # more often than Persistent=true can compensate for.
-        last_run="$(systemctl --user show -p ExecMainExitTimestamp --value borg-backup.service 2>/dev/null)"
-        if [[ -z "$last_run" ]]; then
-          _info "borg-backup has not run yet — start one now: systemctl --user start borg-backup"
-        else
-          last_epoch="$(date -d "$last_run" +%s 2>/dev/null || echo 0)"
-          if [[ "$last_epoch" -gt 0 ]]; then
-            age_days=$(( ( $(date +%s) - last_epoch ) / 86400 ))
-            if [[ "$age_days" -gt 3 ]]; then
-              _warn "last backup was ${age_days} days ago — systemctl --user list-timers borg-backup.timer"
-            else
-              _ok "last backup ${age_days} day(s) ago"
-            fi
-          fi
-        fi
       else
         _warn "borg-backup.timer not enabled — run: bootstrap/install-units.sh"
       fi
     else
       _info "no systemd user instance — cannot check timer state"
+    fi
+
+    # Staleness — the check that actually matters, since an enabled timer on a
+    # machine always asleep at 02:00 reports healthy while backing up nothing.
+    #
+    # Asked of the repo, not of systemd. systemd only knows about runs it
+    # started, so a backup run by hand leaves ExecMainExitTimestamp empty and
+    # the check reported "has not run yet" with a fresh archive sitting on the
+    # NAS — and it could never tell "never ran" from "the timer is broken".
+    # The newest archive's timestamp is ground truth however the run started.
+    if [[ -f "$BORG_REPO/config" && -r "$BORG_PASSPHRASE_FILE" ]]; then
+      # timeout + --lock-wait 0 so a hung NFS mount or a concurrent backup
+      # holding the repo lock cannot make an advisory health check block.
+      last_archive="$(
+        BORG_PASSCOMMAND="cat '$BORG_PASSPHRASE_FILE'" \
+        BORG_BASE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/borg" \
+        timeout 20 borg list --lock-wait 0 --last 1 --format '{time}{NL}' \
+          "$BORG_REPO" 2>/dev/null | head -1
+      )"
+      if [[ -z "$last_archive" ]]; then
+        _info "could not read the repo (locked, slow NFS, or no archives yet)"
+      else
+        last_epoch="$(date -d "$last_archive" +%s 2>/dev/null || echo 0)"
+        if [[ "$last_epoch" -gt 0 ]]; then
+          age_days=$(( ( $(date +%s) - last_epoch ) / 86400 ))
+          if [[ "$age_days" -gt 3 ]]; then
+            _warn "newest archive is ${age_days} days old — systemctl --user list-timers borg-backup.timer"
+          else
+            _ok "newest archive is ${age_days} day(s) old"
+          fi
+        fi
+      fi
     fi
   fi
 fi

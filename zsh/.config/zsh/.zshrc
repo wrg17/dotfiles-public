@@ -185,7 +185,11 @@ upd() {
   fi
   if command -v brew >/dev/null 2>&1; then
     echo "==> brew"
-    brew update && brew upgrade || return 1
+    if ! "${DOTFILES}/bootstrap/brew-bottles.sh" 2>/dev/null; then
+      echo "    skipped: no bottles for this macOS — 'brew upgrade' would build from source"
+    else
+      brew update && brew upgrade || return 1
+    fi
   fi
   if command -v rustup >/dev/null 2>&1; then
     echo "==> rust"

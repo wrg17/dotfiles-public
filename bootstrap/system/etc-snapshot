@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# etc-snapshot — capture root-only system config for the user's borg backup.
+#
+# Installed to /usr/local/sbin by bootstrap/install-system-units.sh and run by
+# etc-snapshot.timer shortly before the user's backup timer fires.
+#
+# Why this exists at all: nearly everything needed to rebuild this machine is
+# in $HOME and covered by the user's borg job, but a few things are not. The
+# load-bearing one is /etc/netplan and the NetworkManager connection files,
+# which are mode 600 root — they hold WiFi credentials. Also here: fstab (the
+# NFS mount the backup itself depends on), docker/daemon.json, apt sources, and
+# the installed package list.
+#
+# Why it writes a tarball for the user's job to pick up, instead of running its
+# own borg against the NAS:
+#
+#   A borg repo belongs to one identity. Two users writing the same repo leaves
+#   files the other cannot rewrite, and the next run fails on permissions. So a
+#   root borg job needs its own repo, its own passphrase, and its own key to
+#   escrow — three more things to lose.
+#
+#   Worse, it would need root to write over NFS, and whether that works is the
+#   server's decision: a Synology export commonly squashes root to a non-
+#   privileged user, which would fail at 02:00 with no one watching.
+#
+#   Handing a tarball to the job that already works avoids both. One repo, one
+#   passphrase, one retention policy, and nothing privileged touches the
+#   network.
+
+set -uo pipefail
+
+log()  { printf '    %s\n' "$*"; }
+die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || die "must run as root (it exists to read root-only files)"
+
+CONF=/etc/default/etc-snapshot
+[ -r "$CONF" ] || die "missing $CONF — re-run bootstrap/install-system-units.sh"
+# shellcheck source=/dev/null
+. "$CONF"
+
+[ -n "${BACKUP_USER:-}" ] || die "BACKUP_USER not set in $CONF"
+
+user_home="$(getent passwd "$BACKUP_USER" | cut -d: -f6)"
+# Spelled out rather than `A && B || C`: that reads as if-then-else but runs C
+# whenever B is false, and shellcheck rightly flags it (SC2015).
+if [ -z "$user_home" ] || [ ! -d "$user_home" ]; then
+  die "no home directory for $BACKUP_USER"
+fi
+
+DEST="$user_home/.local/state/borg-dumps"
+install -d -o "$BACKUP_USER" -g "$BACKUP_USER" -m 700 "$DEST"
+
+# -----------------------------------------------------------------------------
+# /etc
+# -----------------------------------------------------------------------------
+
+out="$DEST/system-etc.tar"
+tmp="$out.tmp"
+rm -f "$tmp"
+
+# Uncompressed, so borg can deduplicate it against yesterday's copy instead of
+# storing a whole fresh blob every night. borg compresses on the way in.
+#
+# shadow and gshadow are deliberately left out. This tarball has to be readable
+# by $BACKUP_USER for the backup to archive it, and putting every account's
+# password hash in a user-readable file is a real weakening for little gain — a
+# restored machine just needs its password reset. Everything else in /etc is
+# either already world-readable or recoverable config.
+tar --warning=no-file-changed --warning=no-file-ignored \
+    -cf "$tmp" \
+    --exclude='/etc/shadow*' \
+    --exclude='/etc/gshadow*' \
+    --exclude='/etc/ssl/certs' \
+    --exclude='/etc/.git' \
+    /etc 2>/dev/null
+rc=$?
+
+# tar exits 1 for "file changed as we read it", which is routine on a live /etc
+# and does not invalidate the archive. Only 2 and above is a real failure.
+if [ "$rc" -ge 2 ] || [ ! -s "$tmp" ]; then
+  rm -f "$tmp"
+  die "tar of /etc failed (rc=$rc)"
+fi
+
+install -o "$BACKUP_USER" -g "$BACKUP_USER" -m 600 "$tmp" "$out"
+rm -f "$tmp"
+log "/etc -> $(basename "$out") ($(du -h "$out" | cut -f1))"
+
+# -----------------------------------------------------------------------------
+# Installed package list
+#
+# bootstrap/apt-pkgs records what this repo deliberately installs; this records
+# what is actually on the machine, including anything added by hand and the
+# dependency closure. Restoring from it is
+# `dpkg --set-selections < … && apt-get dselect-upgrade`.
+# -----------------------------------------------------------------------------
+
+if command -v dpkg >/dev/null 2>&1; then
+  pkgs="$DEST/system-dpkg-selections.txt"
+  if dpkg --get-selections > "$pkgs.tmp" 2>/dev/null && [ -s "$pkgs.tmp" ]; then
+    install -o "$BACKUP_USER" -g "$BACKUP_USER" -m 600 "$pkgs.tmp" "$pkgs"
+    log "dpkg selections -> $(basename "$pkgs") ($(wc -l < "$pkgs") packages)"
+  else
+    log "WARN: dpkg --get-selections failed"
+  fi
+  rm -f "$pkgs.tmp"
+
+  # The manually-installed subset is the useful one for a human rebuilding the
+  # machine; the full selections list above is mostly dependencies.
+  if command -v apt-mark >/dev/null 2>&1; then
+    man="$DEST/system-apt-manual.txt"
+    if apt-mark showmanual > "$man.tmp" 2>/dev/null && [ -s "$man.tmp" ]; then
+      install -o "$BACKUP_USER" -g "$BACKUP_USER" -m 600 "$man.tmp" "$man"
+      log "apt manual list -> $(basename "$man") ($(wc -l < "$man") packages)"
+    fi
+    rm -f "$man.tmp"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
+# Disk layout
+#
+# Not restorable automatically, but without it you are guessing at the
+# partition and LVM layout of an encrypted disk while trying to recover it.
+# -----------------------------------------------------------------------------
+
+layout="$DEST/system-disk-layout.txt"
+{
+  echo "# generated by etc-snapshot on $(date -Is)"
+  echo
+  echo "## lsblk"
+  lsblk -o NAME,SIZE,FSTYPE,UUID,MOUNTPOINT 2>/dev/null
+  echo
+  echo "## blkid"
+  blkid 2>/dev/null
+  echo
+  echo "## lvs / vgs / pvs"
+  lvs 2>/dev/null; vgs 2>/dev/null; pvs 2>/dev/null
+} > "$layout.tmp" 2>/dev/null
+
+if [ -s "$layout.tmp" ]; then
+  install -o "$BACKUP_USER" -g "$BACKUP_USER" -m 600 "$layout.tmp" "$layout"
+  log "disk layout -> $(basename "$layout")"
+fi
+rm -f "$layout.tmp"
+
+log "system snapshot complete"
