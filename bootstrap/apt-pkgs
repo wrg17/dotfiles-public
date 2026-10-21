@@ -1,3 +1,24 @@
+# Shell environment bootstrap
+#
+# These have to exist before anything else in this repo works, and none of them
+# were declared until a fresh-machine audit went looking. `make install-linux`
+# runs linux.sh (which installs this list) and then calls `stow` directly, so
+# without stow here the install died at that line with "command not found" —
+# and linux.sh's `chsh -s "$ZSH_PATH"` step is guarded on zsh existing, so a
+# missing zsh silently left the login shell as bash.
+#
+# git is listed for completeness even though cloning this repo already needed
+# it. curl, wget, ca-certificates, gnupg2 and software-properties-common are
+# deliberately absent: linux.sh installs them in its own prerequisite step,
+# before this file is read, because adding the third-party repos depends on them.
+stow
+zsh
+git
+
+# xclip backs the `clip` helper in zsh/.local/bin. This machine runs KDE on X11;
+# on Wayland `clip` prefers wl-copy, so add wl-clipboard if you switch.
+xclip
+
 # Test tooling — required by `make test`
 # Note: actionlint has no apt package; install via: go install github.com/rhysd/actionlint/cmd/actionlint@latest
 bats
@@ -11,7 +32,9 @@ zlib1g-dev
 libbz2-dev
 libreadline-dev
 libsqlite3-dev
-libncursesw5-dev
+# Real package name. libncursesw5-dev still resolves on noble, but only as a
+# transitional virtual package provided by this one.
+libncurses-dev
 xz-utils
 tk-dev
 libxml2-dev
@@ -28,6 +51,9 @@ lldb
 # Core tools
 tmux
 wezterm
+# `watch` is a virtual package provided solely by procps, so apt resolves it.
+# Left as the command name because that is what it is used as; do not "fix" it
+# to procps without checking test/bootstrap.bats.
 watch
 
 # NFS client — mount.nfs and friends, needed for /etc/fstab NFS mounts
@@ -37,11 +63,19 @@ nfs-common
 # environment is loaded, so this belongs on apt rather than Homebrew
 borgbackup
 
+# sqlite3 CLI — borg-dump-services uses `.backup` to snapshot live WAL-mode
+# databases; without it they are archived as raw files and may restore torn
+sqlite3
+
 # Modern replacements for ls/cat/find — wired up as aliases in .zshrc
 # fd is named fd-find on Ubuntu; the zshrc alias handles the rename
 eza
 bat
 fd-find
+
+# Shell integrations — lazily hooked into .zshrc via _initcache
+zoxide
+direnv
 
 # Docker
 docker-ce
@@ -49,5 +83,23 @@ docker-ce-cli
 containerd.io
 docker-buildx-plugin
 docker-compose-plugin
+
+# Rootless Docker.
+#
+# This machine runs the daemon as a systemd *user* service with its data-root in
+# ~/.local/share/docker, not the system daemon. That is load-bearing for the
+# backup: volume contents are owned by a mapped subuid, so borg-dump-services
+# reads them through a container rather than needing host root. None of these
+# were declared, so a rebuilt machine would have come up with the system daemon
+# instead and the volume dumps would have had nothing to read.
+#
+# After installing, enable it with: dockerd-rootless-setuptool.sh install
+docker-ce-rootless-extras
+uidmap
+dbus-user-session
+
+# GPU containers. linux.sh already adds the NVIDIA Container Toolkit repo but
+# never installed anything from it, so the repo sat there unused.
+nvidia-container-toolkit
 
 # Shell, editor, file manager — installed via bootstrap/install-tools.sh

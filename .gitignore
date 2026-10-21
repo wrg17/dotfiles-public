@@ -15,6 +15,15 @@
 # ~/.config/borg is a stow symlink straight into this repo.
 backup/.config/borg/passphrase
 **/borg/passphrase
+
+# borg's own runtime state. ~/.config/borg is a stow symlink into this repo, so
+# any borg invocation that runs without BORG_BASE_DIR set writes its per-repo
+# security records straight into the worktree — which is how a pile of records
+# for /tmp test repos got committed. Our scripts all set BORG_BASE_DIR; this is
+# the backstop for a borg run by hand.
+backup/.config/borg/security/
+backup/.config/borg/cache/
+backup/.config/borg/keys/
 **/.zcompdump*
 **/*.zwc
 yazi/.config/yazi/plugins/

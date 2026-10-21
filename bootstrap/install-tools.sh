@@ -99,6 +99,127 @@ install_sheldon() {
     | bash -s -- --repo rossmacarthur/sheldon --to "$BIN_DIR"
 }
 
+# ── zoxide / direnv (shell integrations) ─────────────────────────────────────
+
+# Both are in the Brewfile's natural territory, but Homebrew has no bottles for
+# macOS below its support floor, so `brew install zoxide` builds the whole
+# dependency tree from source (llvm included). Upstream ships prebuilt binaries.
+
+install_zoxide() {
+  if command -v zoxide >/dev/null 2>&1; then
+    log "zoxide already installed — skipping"; return
+  fi
+  log "Installing zoxide"
+  curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh \
+    | sh -s -- --bin-dir "$BIN_DIR"
+}
+
+install_direnv() {
+  if command -v direnv >/dev/null 2>&1; then
+    log "direnv already installed — skipping"; return
+  fi
+  log "Installing direnv"
+  bin_path="$BIN_DIR" bash -c "$(curl -sfL https://direnv.net/install.sh)"
+}
+
+# ── eza / bat / fd (coreutils replacements) ──────────────────────────────────
+
+# These were Brewfile formulae, but all three are Rust, so on a mac below
+# Homebrew's bottle floor `brew install` drags in rust and llvm and compiles
+# for hours. Upstream binaries (or a single crate build) take seconds.
+# On Linux apt already provides them, so the guards below simply skip.
+
+# Latest release tag without the rate-limited API: /releases/latest redirects
+# to /releases/tag/<tag>.
+gh_latest_tag() {
+  curl -fsSLI -o /dev/null -w '%{url_effective}' \
+    "https://github.com/$1/releases/latest" | sed 's|.*/tag/||'
+}
+
+# bat and fd share a layout: <name>-<tag>-<triple>.tar.gz holding
+# <name>-<tag>-<triple>/<name>.
+install_sharkdp_binary() {
+  local name="$1" repo="$2" triple tag tmpdir
+  case "${OS}-${ARCH}" in
+    Darwin-x86_64) triple="x86_64-apple-darwin"        ;;
+    Darwin-arm64)  triple="aarch64-apple-darwin"       ;;
+    Linux-x86_64)  triple="x86_64-unknown-linux-musl"  ;;
+    Linux-aarch64) triple="aarch64-unknown-linux-musl" ;;
+    *) printf 'Unsupported platform: %s-%s\n' "$OS" "$ARCH" >&2; return 1 ;;
+  esac
+  tag="$(gh_latest_tag "$repo")"
+  [[ -n "$tag" ]] || { printf 'Could not resolve latest %s tag\n' "$name" >&2; return 1; }
+  tmpdir="$(mktemp -d)"
+  curl -fsSL \
+    "https://github.com/${repo}/releases/download/${tag}/${name}-${tag}-${triple}.tar.gz" \
+    -o "${tmpdir}/${name}.tar.gz"
+  tar -xzf "${tmpdir}/${name}.tar.gz" -C "$tmpdir"
+  cp "${tmpdir}/${name}-${tag}-${triple}/${name}" "$BIN_DIR/"
+  chmod +x "${BIN_DIR}/${name}"
+  rm -rf "$tmpdir"
+}
+
+install_bat() {
+  if command -v bat >/dev/null 2>&1 || command -v batcat >/dev/null 2>&1; then
+    log "bat already installed — skipping"; return
+  fi
+  log "Installing bat"
+  install_sharkdp_binary bat sharkdp/bat
+}
+
+install_fd() {
+  if command -v fd >/dev/null 2>&1 || command -v fdfind >/dev/null 2>&1; then
+    log "fd already installed — skipping"; return
+  fi
+  log "Installing fd"
+  install_sharkdp_binary fd sharkdp/fd
+}
+
+install_eza() {
+  if command -v eza >/dev/null 2>&1; then
+    log "eza already installed — skipping"; return
+  fi
+  # eza ships no macOS binaries — Linux and Windows only. Build the crate
+  # instead: minutes of rustc, versus brew dragging llvm through clang.
+  if [[ "$OS" == "Darwin" ]]; then
+    local cargo="${CARGO_HOME}/bin/cargo"
+    [[ -x "$cargo" ]] || cargo="$(command -v cargo 2>/dev/null || true)"
+    if [[ -z "$cargo" || ! -x "$cargo" ]]; then
+      log "eza needs cargo on macOS (no upstream binary) — skipping"; return
+    fi
+    log "Installing eza via cargo (no upstream macOS binary)"
+    # Non-fatal: eza is an optional ls replacement and .zshrc falls back to
+    # plain ls without it. A failing crate build must not abort the rest of
+    # bootstrap — it once took install_bat and install_fd down with it.
+    # --locked uses eza's own Cargo.lock. Without it cargo resolves
+    # palette_derive independently of palette and the build fails: the 0.7.7
+    # macro emits references to crate::lms, absent from palette 0.7.5.
+    if ! "$cargo" install eza --locked; then
+      log "eza failed to build — skipping (zshrc falls back to ls)"
+    fi
+    return 0
+  fi
+  local asset tmpdir
+  case "$ARCH" in
+    x86_64)  asset="eza_x86_64-unknown-linux-musl.tar.gz" ;;
+    aarch64) asset="eza_aarch64-unknown-linux-gnu.tar.gz" ;;
+    *) printf 'Unsupported arch: %s\n' "$ARCH" >&2; return 1 ;;
+  esac
+  log "Installing eza"
+  tmpdir="$(mktemp -d)"
+  if curl -fsSL \
+      "https://github.com/eza-community/eza/releases/latest/download/${asset}" \
+      -o "${tmpdir}/eza.tar.gz" \
+    && tar -xzf "${tmpdir}/eza.tar.gz" -C "$tmpdir"; then
+    cp "${tmpdir}/eza" "$BIN_DIR/"
+    chmod +x "${BIN_DIR}/eza"
+  else
+    log "eza download failed — skipping (zshrc falls back to ls)"
+  fi
+  rm -rf "$tmpdir"
+  return 0
+}
+
 # ── TPM (tmux plugin manager) ────────────────────────────────────────────────
 
 install_tpm() {
@@ -153,6 +274,11 @@ install_yazi
 install_nvm
 install_rustup
 install_sheldon
+install_zoxide
+install_direnv
+install_bat
+install_fd
+install_eza
 install_tpm
 install_docker_plugins
 

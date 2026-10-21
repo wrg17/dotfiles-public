@@ -3,6 +3,8 @@
 # the global default. All managers run in parallel. Idempotent.
 set -euo pipefail
 
+OS="$(uname -s)"
+
 LOG_DIR="$(mktemp -d)"
 PIDS=()
 NAMES=()
@@ -79,11 +81,29 @@ install_java() {
     echo "already set to $(jenv global) — skipping"; return
   fi
   echo "Installing OpenJDK 21 (LTS)"
-  sudo apt-get install -y --no-install-recommends openjdk-21-jdk
-  local jdk_path
-  jdk_path="$(update-java-alternatives -l 2>/dev/null | awk '/java-21/{print $3}' | head -1)"
-  if [[ -z "$jdk_path" && -d /usr/lib/jvm/java-21-openjdk-amd64 ]]; then
-    jdk_path=/usr/lib/jvm/java-21-openjdk-amd64
+  local jdk_path=""
+  if [[ "$OS" == "Darwin" ]]; then
+    # Installed on demand rather than via the Brewfile: a JDK is a large
+    # download, and this only runs when jenv has no global version set.
+    command -v brew >/dev/null || { echo "brew not found — skipping"; return; }
+    if ! brew list --formula openjdk@21 >/dev/null 2>&1; then
+      # Below Homebrew's bottle floor a JDK is a multi-hour source build, so
+      # make it an explicit choice rather than a surprise inside `make upgrade`.
+      if ! "$(dirname "${BASH_SOURCE[0]}")/brew-bottles.sh"; then
+        echo "openjdk@21 is not installed and this macOS has no bottles —"
+        echo "skipping. Install it deliberately: brew install openjdk@21"
+        return
+      fi
+      brew install openjdk@21
+    fi
+    jdk_path="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
+    [[ -d "$jdk_path" ]] || jdk_path=""
+  else
+    sudo apt-get install -y --no-install-recommends openjdk-21-jdk
+    jdk_path="$(update-java-alternatives -l 2>/dev/null | awk '/java-21/{print $3}' | head -1)"
+    if [[ -z "$jdk_path" && -d /usr/lib/jvm/java-21-openjdk-amd64 ]]; then
+      jdk_path=/usr/lib/jvm/java-21-openjdk-amd64
+    fi
   fi
   if [[ -n "$jdk_path" ]]; then
     jenv add "$jdk_path" || true

@@ -1,0 +1,16 @@
+[Unit]
+Description=Daily /etc snapshot, ahead of the user borg backup
+Documentation=man:systemd.timer(5)
+
+[Timer]
+# 01:45, deliberately ahead of the user's borg-backup.timer at 02:00 (+ up to
+# 15 minutes of jitter), so the tarball the backup archives is from tonight
+# rather than last night. No jitter here, for the same reason.
+OnCalendar=*-*-* 01:45:00
+
+# Same reasoning as the user timer: a workstation that is off at 01:45 would
+# otherwise never snapshot /etc at all.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

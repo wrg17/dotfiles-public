@@ -125,10 +125,41 @@ log "Installing language versions"
 
 log "Post-install configuration"
 
-# Docker: add user to docker group so `docker` works without sudo
+# Docker: add user to docker group so the system daemon works without sudo.
+# Harmless under rootless Docker, which does not use the socket this grants
+# access to — kept because the group is also what lets you talk to a system
+# daemon if you ever switch back.
 if ! id -nG "$USER" | grep -qw docker; then
   sudo usermod -aG docker "$USER"
   echo "    Added $USER to docker group (logout/login required)."
+fi
+
+# Rootless Docker.
+#
+# This machine runs the daemon as a systemd user service with its data-root
+# under ~/.local/share/docker. Without this step a rebuilt machine comes up on
+# the system daemon instead, which changes where volumes live and breaks the
+# container-based volume dumps in borg-dump-services.
+#
+# Non-fatal: it needs a user session bus, which a container or a plain ssh
+# invocation may not have, and bootstrap should not die over it.
+if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
+  if systemctl --user is-active docker >/dev/null 2>&1; then
+    echo "    Rootless Docker already running."
+  elif systemctl --user show-environment >/dev/null 2>&1; then
+    # The system daemon and the rootless one cannot both own the socket.
+    sudo systemctl disable --now docker.service docker.socket 2>/dev/null || true
+    if dockerd-rootless-setuptool.sh install; then
+      systemctl --user enable --now docker 2>/dev/null || true
+      # Needed for the user daemon to keep running with no login session.
+      sudo loginctl enable-linger "$USER" 2>/dev/null || true
+      echo "    Rootless Docker installed and enabled."
+    else
+      echo "    WARN: rootless Docker setup failed — see dockerd-rootless-setuptool.sh output" >&2
+    fi
+  else
+    echo "    No systemd user bus — skipping rootless Docker setup."
+  fi
 fi
 
 # zsh: make it the login shell
@@ -161,6 +192,11 @@ fi
 if command -v syncthing &>/dev/null; then
   systemctl --user enable --now syncthing.service 2>/dev/null || true
 fi
+
+# Root-level backup pieces: the /etc snapshot script and its system timer.
+# These do not depend on stow (nothing is symlinked into $HOME), so unlike the
+# user timers they can be installed from here.
+"$(dirname "$0")/install-system-units.sh"
 
 # Note: the systemd user timers this repo ships are NOT registered here.
 # bootstrap/install-units.sh has to run after `stow`, because the units point at

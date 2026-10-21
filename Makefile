@@ -24,7 +24,16 @@ update:
 upgrade:
 	git pull
 	@if [ "$$(uname)" = "Darwin" ]; then \
-		brew bundle --file=bootstrap/Brewfile; \
+		if bootstrap/brew-bottles.sh; then \
+			brew bundle --file=bootstrap/Brewfile; \
+		else \
+			echo "==> skipping brew bundle: no Homebrew bottles for this macOS."; \
+			echo "    Installing a *missing* formula is as expensive as upgrading one"; \
+			echo "    here — both compile the whole dependency tree. Anything still"; \
+			echo "    listed below is yours to handle deliberately:"; \
+			brew bundle check --file=bootstrap/Brewfile --verbose 2>/dev/null \
+				| grep -E '^(→|Formula)' || true; \
+		fi; \
 	else \
 		sudo apt-get update -qq && grep -vE '^\s*(#|$$)' bootstrap/apt-pkgs | xargs sudo apt-get install -y --no-install-recommends; \
 	fi

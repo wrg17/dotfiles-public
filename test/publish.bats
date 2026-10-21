@@ -42,7 +42,7 @@ _published_tracked_files() {
 
 # Patterns are derived at runtime rather than written literally, so this test does
 # not itself leak the values it guards against (test/ is published too).
-@test "published files leak no absolute home paths, hostname, or git email" {
+@test "published files leak no home paths, hostname, git email, or private IPs" {
   local found="" hits
   cd "$REPO_ROOT"
 
@@ -59,6 +59,19 @@ _published_tracked_files() {
     hits="$(_published_tracked_files | xargs grep -In -F "$shorthost" 2>/dev/null || true)"
     [ -z "$hits" ] || found="${found}hostname:\n${hits}\n"
   fi
+
+  # Private-range IP addresses (RFC1918). Nothing in the published config needs
+  # one, and a LAN address discloses network layout — this repo's own NAS mount
+  # is referred to by mountpoint precisely so the address never appears. The
+  # other checks here are all specific strings; this one is a shape, so it also
+  # catches an address that is not this machine's.
+  #
+  # Loopback and link-local are deliberately not matched: 127.0.0.1 is common in
+  # legitimate config and reveals nothing.
+  hits="$(_published_tracked_files | xargs grep -In -E \
+          '\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})\b' \
+          2>/dev/null || true)"
+  [ -z "$hits" ] || found="${found}private IP addresses:\n${hits}\n"
 
   # The committing user's real git email
   local email; email="$(git config user.email 2>/dev/null || true)"
